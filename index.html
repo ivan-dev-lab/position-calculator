@@ -1,0 +1,167 @@
+<!-- index.html -->
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Калькулятор позиций</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+        body{font-family:Arial,sans-serif;background:#121212;margin:0;padding:20px;color:#fff}
+    .calculator{background:#1e1e1e;max-width:600px;margin:40px auto;padding:25px;border-radius:8px;transition:border-left .2s}
+    h1{text-align:center;margin-bottom:20px}
+    form{display:flex;flex-direction:column}
+    label{margin-top:15px;font-weight:bold;color:#ccc}
+    input,select{padding:8px;margin-top:5px;background:#2a2a2a;border:1px solid #555;
+      border-radius:4px;color:#fff}
+    button{margin-top:20px;padding:12px;background:#26a69a;color:#fff;border:none;
+      border-radius:4px;cursor:pointer;font-size:16px;font-weight:bold;transition:background-color .3s}
+    #result{margin-top:20px;font-size:18px}
+    .result-row{display:flex;justify-content:space-between;padding:5px 0}
+    .result-row span{text-align:center;width:48%}
+    .result-margin{text-align:center;padding:8px 0;font-weight:bold;
+      border-top:1px solid #555;border-bottom:1px solid #555;margin:10px 0}
+    .profit{color:#26a69a;font-weight:bold}.loss{color:#ef5350;font-weight:bold}
+
+    /* темы активов */
+    .calculator.forex-selected{border-left:4px solid #26a69a}
+    .calculator.crypto-selected{border-left:4px solid #f39c12}
+    .calculator.stock-selected{border-left:4px solid #3498db}
+
+    /* смена цвета кнопки */
+    .calculator.forex-selected button{background:#26a69a}
+    .calculator.crypto-selected button{background:#f39c12}
+    .calculator.stock-selected button{background:#3498db}
+
+    @media(max-width:480px){
+      .calculator{padding:15px;margin:20px auto}
+    }
+
+  </style>
+</head>
+<body>
+  <div class="calculator" id="calculatorBox">
+    <h1>Калькулятор позиций</h1>
+    <form id="calcForm">
+      <label for="currencyPair">Актив:</label>
+      <select id="currencyPair" required>
+        <optgroup label="Forex">
+          <option value="EUR/USD">EUR/USD</option>
+          <option value="USD/JPY">USD/JPY</option>
+          <option value="GBP/USD">GBP/USD</option>
+          <option value="AUD/USD">AUD/USD</option>
+          <option value="USD/CHF">USD/CHF</option>
+          <option value="NZD/USD">NZD/USD</option>
+          <option value="USD/CAD">USD/CAD</option>
+          <option value="USD/RUB">USD/RUB</option>
+          <option value="EUR/RUB">EUR/RUB</option>
+          <option value="XAUUSD">XAUUSD</option>
+          <option value="XAGUSD">XAGUSD</option>
+        </optgroup>
+        <optgroup label="Crypto">
+          <option value="BTCUSDT">BTCUSDT</option>
+          <option value="ETHUSDT">ETHUSDT</option>
+        </optgroup>
+        <optgroup label="Stocks">
+          <option value="SBER">SBER</option>
+          <option value="ROSN">ROSN</option>
+          <option value="LKOH">LKOH</option>
+          <option value="NVTK">NVTK</option>
+          <option value="GAZP">GAZP</option>
+          <option value="PLZL">PLZL</option>
+          <option value="SIBN">SIBN</option>
+          <option value="GMKN">GMKN</option>
+          <option value="YDEX">YDEX</option>
+          <option value="TATN">TATN</option>
+          <option value="SNGS">SNGS</option>
+          <option value="VTBR">VTBR</option>
+          <option value="OZON">OZON</option>
+          <option value="TRNF">TRNF</option>
+          <option value="T">T</option>
+          <option value="PHOR">PHOR</option>
+          <option value="CHMF">CHMF</option>
+          <option value="X5">X5</option>
+          <option value="NLMK">NLMK</option>
+          <option value="AKRN">AKRN</option>
+          <option value="UNAC">UNAC</option>
+          <option value="RUAL">RUAL</option>
+          <option value="MTSS">MTSS</option>
+          <option value="PIKK">PIKK</option>
+          <option value="MOEX">MOEX</option>
+          <option value="SVCB">SVCB</option>
+          <option value="MAGN">MAGN</option>
+          <option value="MGNT">MGNT</option>
+          <option value="ALRS">ALRS</option>
+          <option value="IRAO">IRAO</option>
+          <option value="VSMO">VSMO</option>
+          <option value="ENPG">ENPG</option>
+          <option value="IRKT">IRKT</option>
+          <option value="BANE">BANE</option>
+          <option value="CBOM">CBOM</option>
+          <option value="POLY">POLY</option>
+          <option value="AFLT">AFLT</option>
+          <option value="RTKM">RTKM</option>
+          <option value="HYDR">HYDR</option>
+          <option value="FLOT">FLOT</option>
+          <option value="LENT">LENT</option>
+          <option value="BSPB">BSPB</option>
+          <option value="HEAD">HEAD</option>
+          <option value="FESH">FESH</option>
+          <option value="NMTP">NMTP</option>
+          <option value="ROSB">ROSB</option>
+          <option value="NKNC">NKNC</option>
+          <option value="AFKS">AFKS</option>
+          <option value="FIXP">FIXP</option>
+          <option value="LSNG">LSNG</option>
+        </optgroup>
+      </select>
+
+      <label for="depositCurrency">Валюта депозита:</label>
+      <select id="depositCurrency" required>
+        <option value="USD">USD</option>
+        <option value="RUB">RUB</option>
+        <option value="EUR">EUR</option>
+      </select>
+
+      <label for="deposit">Депозит:</label>
+      <input type="number" id="deposit" required>
+
+      <label for="openPrice">Цена открытия:</label>
+      <input type="number" id="openPrice" step="0.00001" required>
+
+      <label for="takeProfit">Take&nbsp;Profit:</label>
+      <input type="number" id="takeProfit" step="0.00001" required>
+
+      <label for="stopLoss">Stop&nbsp;Loss:</label>
+      <input type="number" id="stopLoss" step="0.00001" required>
+
+      <label for="lots" id="lotsLabel">Количество лотов:</label>
+      <input type="number" id="lots" step="0.01" value="1" required>
+
+      <label for="leverage">Плечо:</label>
+      <input type="number" id="leverage" step="1" value="10" required>
+
+      <button type="submit" id="calculateBtn">Рассчитать</button>
+    </form>
+
+    <div id="result">
+      <div class="result-row">
+        <span class="profit" id="profitMoney"></span>
+        <span class="loss"   id="lossMoney"></span>
+      </div>
+      <div class="result-row">
+        <span class="profit" id="profitDepositPercent"></span>
+        <span class="loss"   id="lossDepositPercent"></span>
+      </div>
+      <div class="result-row">
+        <span class="profit" id="profitPositionPercent"></span>
+        <span class="loss"   id="lossPositionPercent"></span>
+      </div>
+      <div class="result-margin">
+        <span id="marginInfo"></span>
+      </div>
+    </div>
+  </div>
+
+  <script src="script.js"></script>
+</body>
+</html>

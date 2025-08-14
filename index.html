@@ -39,21 +39,24 @@
   </style>
 </head>
 <body>
-  <div class="calculator" id="calculatorBox">
+    <div class="calculator" id="calculatorBox">
     <h1>Калькулятор позиций</h1>
     <form id="calcForm">
       <label for="currencyPair">Актив:</label>
       <select id="currencyPair" required>
         <optgroup label="Forex">
           <option value="EUR/USD">EUR/USD</option>
-          <option value="USD/JPY">USD/JPY</option>
           <option value="GBP/USD">GBP/USD</option>
+          <option value="USD/JPY">USD/JPY</option>
+          <option value="GBP/JRY">GBP/USD</option>
           <option value="AUD/USD">AUD/USD</option>
           <option value="USD/CHF">USD/CHF</option>
           <option value="NZD/USD">NZD/USD</option>
           <option value="USD/CAD">USD/CAD</option>
-          <option value="USD/RUB">USD/RUB</option>
-          <option value="EUR/RUB">EUR/RUB</option>
+        <optgroup label="Crypto">
+            <option value="XAUUSD">XAUUSD</option>
+            <option value="XAGUSD">XAGUSD</option>        
+        </optgroup>
           <option value="XAUUSD">XAUUSD</option>
           <option value="XAGUSD">XAGUSD</option>
         </optgroup>
@@ -161,6 +164,7 @@
       </div>
     </div>
   </div>
+
 
   <script src="script.js"></script>
 </body>

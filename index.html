@@ -1,4 +1,3 @@
-<!-- index.html -->
 <!DOCTYPE html>
 <html lang="ru">
 <head>
@@ -6,40 +5,247 @@
   <title>Калькулятор позиций</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
-        body{font-family:Arial,sans-serif;background:#121212;margin:0;padding:20px;color:#fff}
-    .calculator{background:#1e1e1e;max-width:600px;margin:40px auto;padding:25px;border-radius:8px;transition:border-left .2s}
-    h1{text-align:center;margin-bottom:20px}
-    form{display:flex;flex-direction:column}
-    label{margin-top:15px;font-weight:bold;color:#ccc}
-    input,select{padding:8px;margin-top:5px;background:#2a2a2a;border:1px solid #555;
-      border-radius:4px;color:#fff}
-    button{margin-top:20px;padding:12px;background:#26a69a;color:#fff;border:none;
-      border-radius:4px;cursor:pointer;font-size:16px;font-weight:bold;transition:background-color .3s}
-    #result{margin-top:20px;font-size:18px}
-    .result-row{display:flex;justify-content:space-between;padding:5px 0}
-    .result-row span{text-align:center;width:48%}
-    .result-margin{text-align:center;padding:8px 0;font-weight:bold;
-      border-top:1px solid #555;border-bottom:1px solid #555;margin:10px 0}
-    .profit{color:#26a69a;font-weight:bold}.loss{color:#ef5350;font-weight:bold}
-
-    /* темы активов */
-    .calculator.forex-selected{border-left:4px solid green}
-    .calculator.crypto-selected{border-left:4px solid #f39c12}
-    .calculator.stock-selected{border-left:4px solid #3498db}
-
-    /* смена цвета кнопки */
-    .calculator.forex-selected button{background:green}
-    .calculator.crypto-selected button{background:#f39c12}
-    .calculator.stock-selected button{background:#3498db}
-
-    @media(max-width:480px){
-      .calculator{padding:15px;margin:20px auto}
+    body {
+      font-family: Arial, sans-serif;
+      background: #121212;
+      margin: 0;
+      padding: 20px;
+      color: #fff;
     }
 
+    .calculator {
+      background: #1e1e1e;
+      max-width: 600px;
+      margin: 40px auto;
+      padding: 25px;
+      border-radius: 8px;
+      transition: border-left .2s;
+    }
+
+    h1 {
+      text-align: center;
+      margin-bottom: 20px;
+    }
+
+    form {
+      display: flex;
+      flex-direction: column;
+    }
+
+    label {
+      margin-top: 15px;
+      font-weight: bold;
+      color: #ccc;
+    }
+
+    input,
+    select,
+    textarea {
+      padding: 8px;
+      margin-top: 5px;
+      background: #2a2a2a;
+      border: 1px solid #555;
+      border-radius: 4px;
+      color: #fff;
+      font-family: inherit;
+      font-size: 14px;
+      box-sizing: border-box;
+    }
+
+    textarea {
+      resize: vertical;
+      min-height: 40px;
+      max-height: 120px;
+    }
+
+    .buttons-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-top: 20px;
+    }
+
+    .buttons-row button {
+      flex: 1 1 130px;
+    }
+
+    button {
+      padding: 12px;
+      background: #26a69a;
+      color: #fff;
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+      font-size: 16px;
+      font-weight: bold;
+      transition: background-color .3s, opacity .2s;
+    }
+
+    button[disabled] {
+      opacity: 0.6;
+      cursor: not-allowed;
+    }
+
+    .secondary-btn {
+      background: #424242;
+    }
+
+    #result {
+      margin-top: 20px;
+      font-size: 18px;
+    }
+
+    .result-row {
+      display: flex;
+      justify-content: space-between;
+      padding: 5px 0;
+    }
+
+    .result-row span {
+      text-align: center;
+      width: 48%;
+    }
+
+    .result-margin {
+      text-align: center;
+      padding: 8px 0;
+      font-weight: bold;
+      border-top: 1px solid #555;
+      border-bottom: 1px solid #555;
+      margin: 10px 0;
+    }
+
+    .profit {
+      color: #26a69a;
+      font-weight: bold;
+    }
+
+    .loss {
+      color: #ef5350;
+      font-weight: bold;
+    }
+
+    /* темы активов */
+    .calculator.forex-selected {
+      border-left: 4px solid green;
+    }
+
+    .calculator.crypto-selected {
+      border-left: 4px solid #f39c12;
+    }
+
+    .calculator.stock-selected {
+      border-left: 4px solid #3498db;
+    }
+
+    .calculator.forex-selected button[type="submit"] {
+      background: green;
+    }
+
+    .calculator.crypto-selected button[type="submit"] {
+      background: #f39c12;
+    }
+
+    .calculator.stock-selected button[type="submit"] {
+      background: #3498db;
+    }
+
+    /* блок сохранённых сделок */
+    #savedDealsSection {
+      margin-top: 30px;
+      font-size: 14px;
+    }
+
+    #savedDealsSection h2 {
+      text-align: center;
+      margin-bottom: 10px;
+      font-size: 20px;
+    }
+
+    .saved-controls {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+      justify-content: space-between;
+      margin-bottom: 10px;
+    }
+
+    .saved-controls select {
+      min-width: 140px;
+    }
+
+    .saved-controls button {
+      padding: 8px 10px;
+      font-size: 14px;
+    }
+
+    .saved-table-wrapper {
+      overflow-x: auto;
+    }
+
+    .saved-table {
+      width: 100%;
+      min-width: 820px;
+      border-collapse: collapse;
+    }
+
+    .saved-table th,
+    .saved-table td {
+      padding: 6px 4px;
+      border-bottom: 1px solid #333;
+      white-space: nowrap;
+      font-size: 13px;
+      vertical-align: top;
+    }
+
+    .saved-table th {
+      text-align: left;
+      color: #ccc;
+      font-weight: bold;
+    }
+
+    .deal-actions button {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    .deal-comment textarea {
+      width: 180px;
+      min-height: 32px;
+      max-height: 80px;
+      font-size: 12px;
+      white-space: normal;
+    }
+
+    .muted {
+      color: #777;
+      margin-top: 8px;
+      text-align: center;
+    }
+
+    @media(max-width:480px) {
+      .calculator {
+        padding: 15px;
+        margin: 20px auto;
+      }
+
+      #result {
+        font-size: 16px;
+      }
+
+      .saved-table {
+        min-width: 720px;
+      }
+
+      .deal-comment textarea {
+        width: 150px;
+      }
+    }
   </style>
 </head>
 <body>
-    <div class="calculator" id="calculatorBox">
+  <div class="calculator" id="calculatorBox">
     <h1>Калькулятор позиций</h1>
     <form id="calcForm">
       <label for="currencyPair">Актив:</label>
@@ -59,9 +265,9 @@
           <option value="AUD/USD">AUD/USD</option>
         </optgroup>
         <optgroup label="Metalls">
-            <option value="XAUUSD">XAU/USD</option>
-            <option value="XAGUSD">XAG/USD</option> 
-        </optgroup>       
+          <option value="XAUUSD">XAU/USD</option>
+          <option value="XAGUSD">XAG/USD</option>
+        </optgroup>
         <optgroup label="Crypto">
           <option value="BTCUSDT">BTCUSDT</option>
           <option value="ETHUSDT">ETHUSDT</option>
@@ -145,28 +351,79 @@
       <label for="leverage">Плечо:</label>
       <input type="number" id="leverage" step="1" value="10" required>
 
-      <button type="submit" id="calculateBtn">Рассчитать</button>
+      <label for="dealComment">Комментарий к сделке (опционально):</label>
+      <textarea id="dealComment" placeholder="Идея, сетап, таймфрейм и т.п."></textarea>
+
+      <div class="buttons-row">
+        <button type="submit" id="calculateBtn">Рассчитать</button>
+        <button type="button" id="saveDealBtn" class="secondary-btn" disabled>Сохранить сделку</button>
+      </div>
     </form>
 
     <div id="result">
       <div class="result-row">
         <span class="profit" id="profitMoney"></span>
-        <span class="loss"   id="lossMoney"></span>
+        <span class="loss" id="lossMoney"></span>
       </div>
       <div class="result-row">
         <span class="profit" id="profitDepositPercent"></span>
-        <span class="loss"   id="lossDepositPercent"></span>
+        <span class="loss" id="lossDepositPercent"></span>
       </div>
       <div class="result-row">
         <span class="profit" id="profitPositionPercent"></span>
-        <span class="loss"   id="lossPositionPercent"></span>
+        <span class="loss" id="lossPositionPercent"></span>
       </div>
       <div class="result-margin">
         <span id="marginInfo"></span>
       </div>
     </div>
-  </div>
 
+    <div id="savedDealsSection">
+      <h2>Сохранённые сделки</h2>
+      <div class="saved-controls">
+        <span>Сортировать по:</span>
+        <select id="sortBy">
+          <option value="created">дате сохранения</option>
+          <option value="profit">прибыли</option>
+          <option value="loss">убытку</option>
+          <option value="profitDepPct">прибыли от депозита</option>
+          <option value="lossDepPct">убытку от депозита</option>
+          <option value="profitPosPct">прибыли по позиции</option>
+          <option value="lossPosPct">убытку по позиции</option>
+          <option value="margin">требуемой марже</option>
+        </select>
+        <select id="sortOrder">
+          <option value="desc">по убыванию</option>
+          <option value="asc">по возрастанию</option>
+        </select>
+        <button type="button" id="clearDealsBtn" class="secondary-btn">Очистить все</button>
+      </div>
+      <div class="saved-table-wrapper">
+        <table id="savedDealsTable" class="saved-table">
+          <thead>
+            <tr>
+              <th>#</th>
+              <th>Актив</th>
+              <th>Напр.</th>
+              <th>Лоты</th>
+              <th>Плечо</th>
+              <th>Прибыль</th>
+              <th>Убыток</th>
+              <th>Приб. депозита, %</th>
+              <th>Убыт. депозита, %</th>
+              <th>Приб. позиции, %</th>
+              <th>Убыт. позиции, %</th>
+              <th>Маржа</th>
+              <th>Комментарий</th>
+              <th></th>
+            </tr>
+          </thead>
+          <tbody id="savedDealsBody"></tbody>
+        </table>
+      </div>
+      <p id="noDealsMessage" class="muted">Сохранённых сделок пока нет.</p>
+    </div>
+  </div>
 
   <script src="script.js"></script>
 </body>

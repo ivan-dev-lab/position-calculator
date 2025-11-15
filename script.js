@@ -1,12 +1,10 @@
-// script.js
-
 // ==== список топ-50 российских акций ====
 const STOCKS = [
-  'SBER','ROSN','LKOH','NVTK','GAZP','PLZL','SIBN','GMKN','YDEX','TATN',
-  'SNGS','VTBR','OZON','TRNF','T','PHOR','CHMF','X5','NLMK','AKRN',
-  'UNAC','RUAL','MTSS','PIKK','MOEX','SVCB','MAGN','MGNT','ALRS','IRAO',
-  'VSMO','ENPG','IRKT','BANE','CBOM','POLY','AFLT','RTKM','HYDR','FLOT',
-  'LENT','BSPB','HEAD','FESH','NMTP','ROSB','NKNC','AFKS','FIXP','LSNG'
+  'SBER', 'ROSN', 'LKOH', 'NVTK', 'GAZP', 'PLZL', 'SIBN', 'GMKN', 'YDEX', 'TATN',
+  'SNGS', 'VTBR', 'OZON', 'TRNF', 'T', 'PHOR', 'CHMF', 'X5', 'NLMK', 'AKRN',
+  'UNAC', 'RUAL', 'MTSS', 'PIKK', 'MOEX', 'SVCB', 'MAGN', 'MGNT', 'ALRS', 'IRAO',
+  'VSMO', 'ENPG', 'IRKT', 'BANE', 'CBOM', 'POLY', 'AFLT', 'RTKM', 'HYDR', 'FLOT',
+  'LENT', 'BSPB', 'HEAD', 'FESH', 'NMTP', 'ROSB', 'NKNC', 'AFKS', 'FIXP', 'LSNG'
 ];
 
 // ==== вспомогательные словари ====
@@ -29,7 +27,7 @@ function parseCurrencyPair(pair) {
     return { base, quote };
   }
   if (p.endsWith('USDT')) return { base: p.slice(0, -4), quote: 'USDT' };
-  if (p.endsWith('USD'))  return { base: p.slice(0, -3), quote: 'USD'  };
+  if (p.endsWith('USD')) return { base: p.slice(0, -3), quote: 'USD' };
   throw new Error('Неверный формат актива.');
 }
 
@@ -50,14 +48,14 @@ function isStockPair(pair) {
 
 // ==== API курсов (стейблкоины нормализуются к USD) ====
 async function getExchangeRate(from, to) {
-  const STABLE = ['USDT','USDC','DAI','TUSD','USDP'];
+  const STABLE = ['USDT', 'USDC', 'DAI', 'TUSD', 'USDP'];
   const norm = c => STABLE.includes(c) ? 'USD' : c;
   const f = norm(from.toUpperCase()), t = norm(to.toUpperCase());
   if (f === t) return 1;
   try {
-    const res  = await fetch(`https://open.er-api.com/v6/latest/${f}`);
+    const res = await fetch(`https://open.er-api.com/v6/latest/${f}`);
     const data = await res.json();
-    if (data.result !== 'success' || !data.rates[t]) 
+    if (data.result !== 'success' || !data.rates[t])
       throw new Error(`${from}/${to} не найден`);
     return data.rates[t];
   } catch (err) {
@@ -68,23 +66,123 @@ async function getExchangeRate(from, to) {
 
 // ==== сохранение/загрузка формы ====
 function saveFormValues() {
-  ['currencyPair','depositCurrency','deposit','openPrice','takeProfit',
-   'stopLoss','lots','leverage']
-    .forEach(id => {
-      const el = document.getElementById(id);
-      if (el) localStorage.setItem(`calc_${id}`, el.value);
-    });
+  [
+    'currencyPair', 'depositCurrency', 'deposit', 'openPrice', 'takeProfit',
+    'stopLoss', 'lots', 'leverage', 'dealComment'
+  ].forEach(id => {
+    const el = document.getElementById(id);
+    if (el) localStorage.setItem(`calc_${id}`, el.value);
+  });
 }
+
 function loadFormValues() {
-  ['currencyPair','depositCurrency','deposit','openPrice','takeProfit',
-   'stopLoss','lots','leverage']
-    .forEach(id => {
-      const stored = localStorage.getItem(`calc_${id}`);
-      if (stored !== null) {
-        const el = document.getElementById(id);
-        if (el) el.value = stored;
-      }
-    });
+  [
+    'currencyPair', 'depositCurrency', 'deposit', 'openPrice', 'takeProfit',
+    'stopLoss', 'lots', 'leverage', 'dealComment'
+  ].forEach(id => {
+    const stored = localStorage.getItem(`calc_${id}`);
+    if (stored !== null) {
+      const el = document.getElementById(id);
+      if (el) el.value = stored;
+    }
+  });
+}
+
+// ==== сохранённые сделки ====
+let savedDeals = [];
+let lastCalculation = null;
+const DEALS_KEY = 'calc_savedDeals';
+
+function saveDealsToStorage() {
+  try {
+    localStorage.setItem(DEALS_KEY, JSON.stringify(savedDeals));
+  } catch (err) {
+    console.error('Не удалось сохранить сделки', err);
+  }
+}
+
+function renderSavedDeals() {
+  const tbody = document.getElementById('savedDealsBody');
+  const noMsg = document.getElementById('noDealsMessage');
+  const table = document.getElementById('savedDealsTable');
+  if (!tbody || !noMsg || !table) return;
+
+  let deals = [...savedDeals];
+
+  const sortBySel = document.getElementById('sortBy');
+  const sortOrderSel = document.getElementById('sortOrder');
+  const sortBy = sortBySel ? sortBySel.value : 'created';
+  const sortOrder = sortOrderSel ? sortOrderSel.value : 'desc';
+  const factor = sortOrder === 'asc' ? 1 : -1;
+
+  deals.sort((a, b) => {
+    let av, bv;
+    if (sortBy === 'created') {
+      av = a.created || 0;
+      bv = b.created || 0;
+    } else {
+      av = typeof a[sortBy] === 'number' ? a[sortBy] : 0;
+      bv = typeof b[sortBy] === 'number' ? b[sortBy] : 0;
+    }
+    if (av === bv) return 0;
+    return av > bv ? factor : -factor;
+  });
+
+  tbody.innerHTML = '';
+
+  deals.forEach((d, index) => {
+    const tr = document.createElement('tr');
+    tr.innerHTML = `
+      <td>${index + 1}</td>
+      <td>${d.pair}</td>
+      <td>${d.direction}</td>
+      <td>${d.lots}</td>
+      <td>${d.leverage}x</td>
+      <td class="profit">${d.profit.toFixed(2)} ${d.depCur}</td>
+      <td class="loss">${d.loss.toFixed(2)} ${d.depCur}</td>
+      <td class="profit">${d.profitDepPct.toFixed(2)} %</td>
+      <td class="loss">${d.lossDepPct.toFixed(2)} %</td>
+      <td class="profit">${d.profitPosPct.toFixed(2)} %</td>
+      <td class="loss">${d.lossPosPct.toFixed(2)} %</td>
+      <td>${d.margin.toFixed(2)} ${d.depCur}</td>
+      <td class="deal-comment">
+        <textarea data-id="${d.id}" placeholder="Комментарий к сделке"></textarea>
+      </td>
+      <td class="deal-actions">
+        <button type="button" data-id="${d.id}">Удалить</button>
+      </td>
+    `;
+    tbody.appendChild(tr);
+
+    // безопасно проставляем текст комментария уже после innerHTML
+    const ta = tr.querySelector('textarea[data-id]');
+    if (ta) ta.value = d.comment || '';
+  });
+
+  noMsg.style.display = deals.length ? 'none' : 'block';
+  table.style.display = deals.length ? 'table' : 'none';
+}
+
+function loadSavedDealsFromStorage() {
+  try {
+    const raw = localStorage.getItem(DEALS_KEY);
+    if (!raw) {
+      savedDeals = [];
+    } else {
+      const parsed = JSON.parse(raw);
+      savedDeals = Array.isArray(parsed) ? parsed : [];
+    }
+  } catch (err) {
+    console.error('Не удалось прочитать сохранённые сделки', err);
+    savedDeals = [];
+  }
+  renderSavedDeals();
+}
+
+function deleteDeal(id) {
+  savedDeals = savedDeals.filter(d => String(d.id) !== String(id));
+  saveDealsToStorage();
+  renderSavedDeals();
 }
 
 // ==== динамический расчёт max лотов ====
@@ -106,7 +204,6 @@ async function updateMaxLots() {
   const depositCurrency = document.getElementById('depositCurrency').value;
   if (depositCurrency !== quote) {
     try {
-      // конвертируем депозит в котировочную валюту
       const rate = await getExchangeRate(depositCurrency, quote);
       depositInQuote = dep * rate;
     } catch {
@@ -126,13 +223,13 @@ async function calculate(e) {
   saveFormValues();
 
   const pair = document.getElementById('currencyPair').value.trim().toUpperCase();
-  const dep   = parseFloat(document.getElementById('deposit').value);
-  const depCur= document.getElementById('depositCurrency').value;
-  const open  = parseFloat(document.getElementById('openPrice').value);
-  const tp    = parseFloat(document.getElementById('takeProfit').value);
-  const sl    = parseFloat(document.getElementById('stopLoss').value);
-  const lots  = parseFloat(document.getElementById('lots').value);
-  const lev   = parseFloat(document.getElementById('leverage').value);
+  const dep = parseFloat(document.getElementById('deposit').value);
+  const depCur = document.getElementById('depositCurrency').value;
+  const open = parseFloat(document.getElementById('openPrice').value);
+  const tp = parseFloat(document.getElementById('takeProfit').value);
+  const sl = parseFloat(document.getElementById('stopLoss').value);
+  const lots = parseFloat(document.getElementById('lots').value);
+  const lev = parseFloat(document.getElementById('leverage').value);
 
   if ([dep, open, tp, sl, lots, lev].some(v => isNaN(v)) || !pair) {
     alert('Заполните все поля корректно.');
@@ -147,7 +244,6 @@ async function calculate(e) {
     return;
   }
 
-  // правильная конверсия прибыли/убытка в валюту депозита
   let convRate = 1;
   if (quote !== depCur) {
     try {
@@ -160,45 +256,72 @@ async function calculate(e) {
   const size = getContractSize(pair);
   const margin = (lots * size * open) / lev;
 
-  // учитываем направление сделки: BUY если tp>=open, SELL если tp<open
   let profitQuote, lossQuote;
   if (tp >= open) {
     profitQuote = (tp - open) * lots * size;
-    lossQuote   = (open - sl) * lots * size;
+    lossQuote = (open - sl) * lots * size;
   } else {
     profitQuote = (open - tp) * lots * size;
-    lossQuote   = (sl - open) * lots * size;
+    lossQuote = (sl - open) * lots * size;
   }
 
   const profit = profitQuote * convRate;
-  const loss   = lossQuote   * convRate;
+  const loss = lossQuote * convRate;
 
   const posCost = open * lots * size;
   const profitPosPct = (profitQuote / posCost) * 100;
-  const lossPosPct   = (lossQuote   / posCost) * 100;
+  const lossPosPct = (lossQuote / posCost) * 100;
   const profitDepPct = (profit / dep) * 100;
-  const lossDepPct   = (loss   / dep) * 100;
+  const lossDepPct = (loss / dep) * 100;
 
-  document.getElementById('profitMoney').textContent           =
+  const marginInDeposit = margin * convRate;
+
+  document.getElementById('profitMoney').textContent =
     `Прибыль: ${Math.abs(profit.toFixed(2))} ${depCur}`;
-  document.getElementById('lossMoney').textContent             =
+  document.getElementById('lossMoney').textContent =
     `Убыток: ${Math.abs(loss.toFixed(2))} ${depCur}`;
-  document.getElementById('marginInfo').textContent            =
-    `Требуемая маржа: ${(margin * convRate).toFixed(2)} ${depCur}`;
-  document.getElementById('profitDepositPercent').textContent  =
+  document.getElementById('marginInfo').textContent =
+    `Требуемая маржа: ${marginInDeposit.toFixed(2)} ${depCur}`;
+  document.getElementById('profitDepositPercent').textContent =
     `Прибыль от депозита: ${Math.abs(profitDepPct.toFixed(2))} %`;
-  document.getElementById('lossDepositPercent').textContent    =
+  document.getElementById('lossDepositPercent').textContent =
     `Убыток от депозита: ${Math.abs(lossDepPct.toFixed(2))} %`;
   document.getElementById('profitPositionPercent').textContent =
     `Прибыль по позиции: ${Math.abs(profitPosPct.toFixed(2))} %`;
-  document.getElementById('lossPositionPercent').textContent   =
+  document.getElementById('lossPositionPercent').textContent =
     `Убыток по позиции: ${Math.abs(lossPosPct.toFixed(2))} %`;
+
+  lastCalculation = {
+    pair,
+    dep,
+    depCur,
+    open,
+    tp,
+    sl,
+    lots,
+    leverage: lev,
+    margin: Math.abs(marginInDeposit),
+    profit: Math.abs(profit),
+    loss: Math.abs(loss),
+    profitDepPct: Math.abs(profitDepPct),
+    lossDepPct: Math.abs(lossDepPct),
+    profitPosPct: Math.abs(profitPosPct),
+    lossPosPct: Math.abs(lossPosPct),
+    direction: tp >= open ? 'BUY' : 'SELL',
+    created: Date.now()
+  };
+
+  const saveBtn = document.getElementById('saveDealBtn');
+  if (saveBtn) {
+    saveBtn.disabled = false;
+    saveBtn.textContent = 'Сохранить сделку';
+  }
 }
 
 // ==== смена темы при выборе актива ====
 function updateAssetTheme() {
   const pair = document.getElementById('currencyPair').value;
-  const box  = document.getElementById('calculatorBox');
+  const box = document.getElementById('calculatorBox');
   const stock = isStockPair(pair);
   box.classList.toggle('stock-selected', stock);
   box.classList.toggle('crypto-selected', isCryptoPair(pair) && !stock);
@@ -211,10 +334,10 @@ document.addEventListener('DOMContentLoaded', () => {
   updateAssetTheme();
   updateMaxLots();
 
-  document.querySelectorAll('#calcForm input, #calcForm select')
+  document.querySelectorAll('#calcForm input, #calcForm select, #calcForm textarea')
     .forEach(el => el.addEventListener('input', () => {
       saveFormValues();
-      if (['deposit','openPrice','leverage','depositCurrency'].includes(el.id)) {
+      if (['deposit', 'openPrice', 'leverage', 'depositCurrency'].includes(el.id)) {
         updateMaxLots();
       }
     }));
@@ -227,4 +350,71 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('calcForm')
     .addEventListener('submit', calculate);
+
+  const tbody = document.getElementById('savedDealsBody');
+  if (tbody) {
+    // удаление сделки
+    tbody.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-id]');
+      if (!btn) return;
+      const id = btn.getAttribute('data-id');
+      deleteDeal(id);
+    });
+
+    // онлайн-обновление комментария
+    tbody.addEventListener('input', (e) => {
+      const ta = e.target.closest('textarea[data-id]');
+      if (!ta) return;
+      const id = ta.getAttribute('data-id');
+      const deal = savedDeals.find(d => String(d.id) === String(id));
+      if (!deal) return;
+      deal.comment = ta.value;
+      saveDealsToStorage();
+    });
+  }
+
+  const sortBySel = document.getElementById('sortBy');
+  if (sortBySel) sortBySel.addEventListener('change', renderSavedDeals);
+
+  const sortOrderSel = document.getElementById('sortOrder');
+  if (sortOrderSel) sortOrderSel.addEventListener('change', renderSavedDeals);
+
+  const clearBtn = document.getElementById('clearDealsBtn');
+  if (clearBtn) {
+    clearBtn.addEventListener('click', () => {
+      if (!savedDeals.length) return;
+      if (confirm('Удалить все сохранённые сделки?')) {
+        savedDeals = [];
+        saveDealsToStorage();
+        renderSavedDeals();
+      }
+    });
+  }
+
+  const saveBtn = document.getElementById('saveDealBtn');
+  if (saveBtn) {
+    saveBtn.disabled = true;
+    saveBtn.addEventListener('click', () => {
+      if (!lastCalculation) {
+        alert('Сначала выполните расчёт сделки.');
+        return;
+      }
+      const commentInput = document.getElementById('dealComment');
+      const comment = commentInput ? commentInput.value.trim() : '';
+
+      const deal = {
+        ...lastCalculation,
+        comment,
+        id: String(Date.now()) + '_' + Math.floor(Math.random() * 1000)
+      };
+      savedDeals.push(deal);
+      saveDealsToStorage();
+      renderSavedDeals();
+
+      saveBtn.disabled = true;
+      saveBtn.textContent = 'Сделка сохранена';
+    });
+  }
+
+  loadSavedDealsFromStorage();
 });

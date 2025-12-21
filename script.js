@@ -1,11 +1,7 @@
 // ==== список топ-50 российских акций ====
-const STOCKS = [
-  'SBER', 'ROSN', 'LKOH', 'NVTK', 'GAZP', 'PLZL', 'SIBN', 'GMKN', 'YDEX', 'TATN',
-  'SNGS', 'VTBR', 'OZON', 'TRNF', 'T', 'PHOR', 'CHMF', 'X5', 'NLMK', 'AKRN',
-  'UNAC', 'RUAL', 'MTSS', 'PIKK', 'MOEX', 'SVCB', 'MAGN', 'MGNT', 'ALRS', 'IRAO',
-  'VSMO', 'ENPG', 'IRKT', 'BANE', 'CBOM', 'POLY', 'AFLT', 'RTKM', 'HYDR', 'FLOT',
-  'LENT', 'BSPB', 'HEAD', 'FESH', 'NMTP', 'ROSB', 'NKNC', 'AFKS', 'FIXP', 'LSNG'
-];
+const INDEXES = {
+  GER40: { quote: 'EUR', contractSize: 1 }
+};
 
 // ==== вспомогательные словари ====
 const CONTRACT_SIZES = {
@@ -19,8 +15,8 @@ const CONTRACT_SIZES = {
 // ==== разбор пары/тика ====
 function parseCurrencyPair(pair) {
   const p = pair.toUpperCase();
-  if (STOCKS.includes(p)) {
-    return { base: p, quote: document.getElementById('depositCurrency').value };
+  if (INDEXES[p]) {
+    return { base: p, quote: INDEXES[p].quote };
   }
   if (p.includes('/')) {
     const [base, quote] = p.split('/');
@@ -33,8 +29,8 @@ function parseCurrencyPair(pair) {
 
 // ==== контракт-сайз для расчётов ====
 function getContractSize(pair) {
-  const key = pair.replace('/', '');
-  if (STOCKS.includes(key)) return 1;
+  const key = pair.replace('/', '').toUpperCase();
+  if (INDEXES[key]) return INDEXES[key].contractSize;
   return CONTRACT_SIZES[key] || CONTRACT_SIZES.DEFAULT;
 }
 
@@ -42,8 +38,8 @@ function getContractSize(pair) {
 function isCryptoPair(pair) {
   return /BTC|ETH/i.test(pair);
 }
-function isStockPair(pair) {
-  return STOCKS.includes(pair.toUpperCase());
+function isIndexPair(pair) {
+  return Boolean(INDEXES[pair.toUpperCase()]);
 }
 
 // ==== API курсов (стейблкоины нормализуются к USD) ====
@@ -191,7 +187,13 @@ async function updateMaxLots() {
   const open = parseFloat(document.getElementById('openPrice').value);
   const lev = parseFloat(document.getElementById('leverage').value);
   const pair = document.getElementById('currencyPair').value.trim().toUpperCase();
-  const { quote } = parseCurrencyPair(pair);
+  let quote;
+  try {
+    ({ quote } = parseCurrencyPair(pair));
+  } catch {
+    document.getElementById('lots').removeAttribute('max');
+    return;
+  }
   const size = getContractSize(pair);
 
   if ([dep, open, lev].some(v => isNaN(v) || v <= 0)) {
@@ -322,10 +324,10 @@ async function calculate(e) {
 function updateAssetTheme() {
   const pair = document.getElementById('currencyPair').value;
   const box = document.getElementById('calculatorBox');
-  const stock = isStockPair(pair);
-  box.classList.toggle('stock-selected', stock);
-  box.classList.toggle('crypto-selected', isCryptoPair(pair) && !stock);
-  box.classList.toggle('forex-selected', !isCryptoPair(pair) && !stock);
+  const index = isIndexPair(pair);
+  box.classList.toggle('index-selected', index);
+  box.classList.toggle('crypto-selected', isCryptoPair(pair) && !index);
+  box.classList.toggle('forex-selected', !isCryptoPair(pair) && !index);
 }
 
 // ==== инициализация ====

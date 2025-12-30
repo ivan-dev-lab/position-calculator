@@ -1,6 +1,6 @@
 // ==== список топ-50 российских акций ====
 const INDEXES = {
-  GER40: { quote: 'EUR', contractSize: 1 }
+  GER40: { quote: 'EUR', contractSize: 25 }
 };
 
 // ==== вспомогательные словари ====

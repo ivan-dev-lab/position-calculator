@@ -1,6 +1,6 @@
 const INDEXES = {
   GER40: { quote: 'EUR', contractSize: 25 },
-  SPX500: { quote: 'USD', contractSize: 1 }
+  SPX500: { quote: 'USD', contractSize: 50 }
 };
 
 // ==== вспомогательные словари ====

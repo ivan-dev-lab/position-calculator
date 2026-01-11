@@ -76,37 +76,8 @@ function createMetaItem(label, value, valueClass, dataField) {
   return item;
 }
 
-function setPreviewEmpty(preview) {
-  if (preview.dataset.previewUrl) {
-    URL.revokeObjectURL(preview.dataset.previewUrl);
-    preview.dataset.previewUrl = '';
-  }
-  preview.innerHTML = '';
-  const text = document.createElement('span');
-  text.textContent = 'Нет изображения. Ctrl+V для вставки.';
-  preview.appendChild(text);
-}
 
-function setPreviewImage(preview, file) {
-  if (preview.dataset.previewUrl) {
-    URL.revokeObjectURL(preview.dataset.previewUrl);
-    preview.dataset.previewUrl = '';
-  }
-  const url = URL.createObjectURL(file);
-  preview.dataset.previewUrl = url;
-  preview.innerHTML = '';
-  const img = document.createElement('img');
-  img.src = url;
-  img.alt = 'График сделки';
-  preview.appendChild(img);
-}
 
-function getImageFromClipboard(clipboardData) {
-  if (!clipboardData || !clipboardData.items) return null;
-  const items = Array.from(clipboardData.items);
-  const imageItem = items.find(item => item.kind === 'file' && item.type.startsWith('image/'));
-  return imageItem ? imageItem.getAsFile() : null;
-}
 
 function setActiveCard(card) {
   const prev = document.querySelector('.deal-card.active');
@@ -170,6 +141,7 @@ async function updateLimitStats() {
   const limitInput = document.getElementById('limitsValue');
   if (!limitInput) return;
   const limitValue = parseFloat(limitInput.value);
+  const depositOverride = getOverrideDeposit();
 
   if (!limitValue || limitValue <= 0) {
     setLimitStatText('-', '-', '-');
@@ -207,7 +179,8 @@ async function updateLimitStats() {
     totalDepUsd += (Number(deal.dep) || 0) * rate;
   });
 
-  const lossPct = totalDepUsd > 0 ? (totalLossUsd / totalDepUsd) * 100 : null;
+  const lossPctBase = depositOverride || (totalDepUsd > 0 ? totalDepUsd : null);
+  const lossPct = lossPctBase ? (totalLossUsd / lossPctBase) * 100 : null;
   const usagePct = (totalLossUsd / limitValue) * 100;
 
   const lossUsdText = `${totalLossUsd.toFixed(2)} USD`;
@@ -319,6 +292,7 @@ function buildPublicationExport() {
   });
 
   COLUMN_ORDER.forEach((groupId) => {
+    if (groupId === 'pool') return;
     const title = COLUMN_TITLES[groupId];
     const deals = currentDeals.filter((deal, index) => {
       const id = getDealId(deal, index);
@@ -519,18 +493,6 @@ function renderDeals(deals) {
 
     header.append(title, tag);
 
-    const imageBlock = document.createElement('div');
-    imageBlock.className = 'image-input';
-    const imageLabel = document.createElement('label');
-    imageLabel.textContent = 'График/скриншот (Ctrl+V)';
-    const imageInput = document.createElement('input');
-    imageInput.type = 'file';
-    imageInput.accept = 'image/*';
-    const preview = document.createElement('div');
-    preview.className = 'preview';
-    setPreviewEmpty(preview);
-    imageBlock.append(imageLabel, imageInput, preview);
-
     const meta = document.createElement('div');
     meta.className = 'deal-meta';
     meta.append(
@@ -539,7 +501,7 @@ function renderDeals(deals) {
       createMetaItem('RR', formatRiskReward(deal.profitDepPct, deal.lossDepPct), null, 'rr')
     );
 
-    card.append(header, imageBlock, meta);
+    card.append(header, meta);
 
     const groupId = normalizeGroupId(dealGroups[card.dataset.id]);
     const targetList = lists[groupId] || lists.pool || lists.primary;
@@ -553,6 +515,7 @@ function renderDeals(deals) {
 
   updateLimitStats();
   updateDealPercentages();
+  updateDepositPlaceholder();
 }
 
 function loadDeals() {
@@ -586,40 +549,41 @@ function loadDepositOverride() {
   deposit.addEventListener('input', () => {
     localStorage.setItem(DEPOSIT_KEY, deposit.value);
     updateDealPercentages();
+    updateLimitStats();
   });
 }
 
-function handleFileInputChange(event) {
-  const input = event.target.closest('input[type="file"]');
-  if (!input) return;
-  const card = input.closest('.deal-card');
-  if (card) setActiveCard(card);
-  const preview = card ? card.querySelector('.preview') : null;
-  if (!preview) return;
-  const file = input.files && input.files[0];
-  if (!file) {
-    setPreviewEmpty(preview);
+function updateDepositPlaceholder() {
+  const depositInput = document.getElementById('depositValue');
+  if (!depositInput) return;
+  if (!currentDeals.length) {
+    depositInput.placeholder = 'Например: 1000';
     return;
   }
-  setPreviewImage(preview, file);
+
+  const first = currentDeals[0];
+  const baseDep = Number(first.dep);
+  const baseCur = (first.depCur || 'USD').toUpperCase();
+  if (!baseDep) {
+    depositInput.placeholder = 'Например: 1000';
+    return;
+  }
+
+  const allSame = currentDeals.every((deal) => {
+    const dep = Number(deal.dep);
+    const cur = (deal.depCur || 'USD').toUpperCase();
+    return dep === baseDep && cur === baseCur;
+  });
+
+  if (!allSame) {
+    depositInput.placeholder = 'Депозиты различаются';
+    return;
+  }
+
+  depositInput.placeholder = `Изначальный депозит: ${baseDep.toFixed(2)} ${baseCur}`;
 }
 
-function handlePaste(event) {
-  const directCard = event.target.closest ? event.target.closest('.deal-card') : null;
-  const fallbackCard = activeCardId
-    ? document.querySelector(`.deal-card[data-id="${activeCardId}"]`)
-    : document.querySelector('.deal-card');
-  const card = directCard || fallbackCard;
-  if (!card) return;
 
-  const file = getImageFromClipboard(event.clipboardData);
-  if (!file) return;
-  event.preventDefault();
-
-  const preview = card.querySelector('.preview');
-  if (!preview) return;
-  setPreviewImage(preview, file);
-}
 
 function setupBoardInteractions() {
   const board = document.getElementById('dealBoard');
@@ -638,8 +602,6 @@ function setupBoardInteractions() {
     setActiveCard(card);
   });
 
-  board.addEventListener('change', handleFileInputChange);
-  board.addEventListener('paste', handlePaste);
 }
 
 function setupDropZones() {
@@ -683,4 +645,3 @@ setupBoardInteractions();
 setupDropZones();
 setupExportControls();
 setupImportControls();
-document.addEventListener('paste', handlePaste);

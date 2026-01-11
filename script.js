@@ -87,6 +87,7 @@ function loadFormValues() {
 // ==== сохранённые сделки ====
 let savedDeals = [];
 let lastCalculation = null;
+let editingDealId = null;
 const DEALS_KEY = 'calc_savedDeals';
 
 function saveDealsToStorage() {
@@ -145,7 +146,8 @@ function renderSavedDeals() {
         <textarea data-id="${d.id}" placeholder="Комментарий к сделке"></textarea>
       </td>
       <td class="deal-actions">
-        <button type="button" data-id="${d.id}" class="secondary-btn">Удалить</button>
+        <button type="button" data-action="edit" data-id="${d.id}" class="secondary-btn">Редактировать</button>
+        <button type="button" data-action="delete" data-id="${d.id}" class="secondary-btn">Удалить</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -179,6 +181,45 @@ function deleteDeal(id) {
   savedDeals = savedDeals.filter(d => String(d.id) !== String(id));
   saveDealsToStorage();
   renderSavedDeals();
+}
+
+function startEditDeal(id) {
+  const deal = savedDeals.find(d => String(d.id) === String(id));
+  if (!deal) return;
+
+  editingDealId = String(id);
+  lastCalculation = { ...deal };
+
+  const pairEl = document.getElementById('currencyPair');
+  if (pairEl && deal.pair) pairEl.value = deal.pair;
+  const depCurEl = document.getElementById('depositCurrency');
+  if (depCurEl && deal.depCur) depCurEl.value = deal.depCur;
+  const depEl = document.getElementById('deposit');
+  if (depEl && deal.dep !== undefined) depEl.value = deal.dep;
+  const openEl = document.getElementById('openPrice');
+  if (openEl && deal.open !== undefined) openEl.value = deal.open;
+  const tpEl = document.getElementById('takeProfit');
+  if (tpEl && deal.tp !== undefined) tpEl.value = deal.tp;
+  const slEl = document.getElementById('stopLoss');
+  if (slEl && deal.sl !== undefined) slEl.value = deal.sl;
+  const lotsEl = document.getElementById('lots');
+  if (lotsEl && deal.lots !== undefined) lotsEl.value = deal.lots;
+  const levEl = document.getElementById('leverage');
+  if (levEl && deal.leverage !== undefined) levEl.value = deal.leverage;
+  const commentInput = document.getElementById('dealComment');
+  if (commentInput) commentInput.value = deal.comment || '';
+
+  updateAssetTheme();
+  updateMaxLots();
+
+  Promise.resolve(calculate({ preventDefault: () => {} }))
+    .finally(() => {
+      const saveBtn = document.getElementById('saveDealBtn');
+      if (saveBtn) {
+        saveBtn.disabled = false;
+        saveBtn.textContent = 'Обновить сделку';
+      }
+    });
 }
 
 function ensureDealIds(deals) {
@@ -357,7 +398,7 @@ async function calculate(e) {
   const saveBtn = document.getElementById('saveDealBtn');
   if (saveBtn) {
     saveBtn.disabled = false;
-    saveBtn.textContent = 'Сохранить сделку';
+    saveBtn.textContent = editingDealId ? 'Обновить сделку' : 'Сохранить сделку';
   }
 }
 
@@ -398,10 +439,15 @@ document.addEventListener('DOMContentLoaded', () => {
   if (tbody) {
     // удаление сделки
     tbody.addEventListener('click', (e) => {
-      const btn = e.target.closest('button[data-id]');
+      const btn = e.target.closest('button[data-action][data-id]');
       if (!btn) return;
       const id = btn.getAttribute('data-id');
-      deleteDeal(id);
+      const action = btn.getAttribute('data-action');
+      if (action === 'delete') {
+        deleteDeal(id);
+      } else if (action === 'edit') {
+        startEditDeal(id);
+      }
     });
 
     // онлайн-обновление комментария
@@ -455,6 +501,28 @@ document.addEventListener('DOMContentLoaded', () => {
       }
       const commentInput = document.getElementById('dealComment');
       const comment = commentInput ? commentInput.value.trim() : '';
+
+      if (editingDealId) {
+        const existing = savedDeals.find(d => String(d.id) === String(editingDealId));
+        if (!existing) {
+          editingDealId = null;
+        } else {
+          const updated = {
+            ...existing,
+            ...lastCalculation,
+            comment,
+            id: existing.id,
+            created: existing.created || lastCalculation.created
+          };
+          savedDeals = savedDeals.map(d => String(d.id) === String(editingDealId) ? updated : d);
+          saveDealsToStorage();
+          renderSavedDeals();
+          editingDealId = null;
+          saveBtn.disabled = true;
+          saveBtn.textContent = 'Сделка обновлена';
+          return;
+        }
+      }
 
       const deal = {
         ...lastCalculation,

@@ -63,21 +63,34 @@
       font-size: 14px;
     }
 
-    .limit-row {
-      display: flex;
-      align-items: center;
+    .limit-fields {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
       gap: 12px;
-      flex-wrap: wrap;
+      margin-bottom: 12px;
+    }
+
+    .limit-field {
+      background: #f7f8fa;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 10px;
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
     }
 
     .limit-label {
       font-weight: bold;
-      font-size: 14px;
+      font-size: 12px;
+      color: #5d6670;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
     }
 
     .limits input[type="number"] {
-      width: 200px;
-      background: #f7f8fa;
+      width: 100%;
+      background: #ffffff;
       border: 1px solid #cfd6dd;
       border-radius: 6px;
       padding: 8px 10px;
@@ -265,42 +278,6 @@
       font-weight: bold;
     }
 
-    .image-input label {
-      display: block;
-      font-size: 12px;
-      font-weight: bold;
-      margin-bottom: 4px;
-    }
-
-    .image-input input[type="file"] {
-      width: 100%;
-      font-size: 12px;
-    }
-
-    .preview {
-      margin-top: 6px;
-      background: #f7f8fa;
-      border: 1px dashed #d5dbe0;
-      border-radius: 8px;
-      min-height: 70px;
-      display: flex;
-      align-items: center;
-      justify-content: center;
-      padding: 8px;
-      box-sizing: border-box;
-    }
-
-    .preview img {
-      max-width: 100%;
-      height: auto;
-      border-radius: 6px;
-    }
-
-    .preview span {
-      color: #7a838c;
-      font-size: 11px;
-    }
-
     .warning {
       margin-top: 22px;
       padding: 12px 14px;
@@ -339,20 +316,22 @@
     <header class="page-header">
       <div>
         <h1>Выбор сделок</h1>
-        <p class="subhead">Сделки и лимит в одном месте. Графики добавляются только для этой страницы.</p>
+        <p class="subhead">Сделки и лимит в одном месте.</p>
       </div>
       <a class="secondary-btn" href="../index.html">Назад к калькулятору</a>
     </header>
 
     <section class="limits card">
       <h2>Лимит торговли</h2>
-      <div class="limit-row">
-        <label class="limit-label" for="limitsValue">Лимит, USD</label>
-        <input id="limitsValue" type="number" min="0" step="1" placeholder="Например: 500">
-      </div>
-      <div class="limit-row">
-        <label class="limit-label" for="depositValue">Депозит, USD</label>
-        <input id="depositValue" type="number" min="0" step="1" placeholder="Например: 1000">
+      <div class="limit-fields">
+        <div class="limit-field">
+          <label class="limit-label" for="limitsValue">Лимит, USD</label>
+          <input id="limitsValue" type="number" min="0" step="1" placeholder="Например: 500">
+        </div>
+        <div class="limit-field">
+          <label class="limit-label" for="depositValue">Депозит, USD</label>
+          <input id="depositValue" type="number" min="0" step="1" placeholder="Например: 1000">
+        </div>
       </div>
       <div class="limit-stats">
         <div class="limit-stat">
@@ -413,7 +392,7 @@
       </div>
     </section>
 
-    <div class="warning">Перед выходом из страницы изменения и добавленные изображения не сохраняются.</div>
+    <div class="warning">Перед выходом из страницы проверьте, что данные сохранены или экспортированы.</div>
   </main>
 
   <script src="choice.js"></script>

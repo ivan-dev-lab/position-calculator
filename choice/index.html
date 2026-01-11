@@ -1,0 +1,421 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8">
+  <title>Выбор сделок</title>
+  <meta name="viewport" content="width=device-width,initial-scale=1">
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background: #f4f6f8;
+      margin: 0;
+      color: #1f2328;
+    }
+
+    .page {
+      max-width: 1600px;
+      margin: 28px auto 40px;
+      padding: 0 20px;
+    }
+
+    .page-header {
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      gap: 16px;
+      flex-wrap: wrap;
+      margin-bottom: 18px;
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 28px;
+    }
+
+    h2 {
+      margin: 0 0 12px;
+      font-size: 20px;
+    }
+
+    .subhead {
+      margin: 6px 0 0;
+      color: #5d6670;
+      font-size: 14px;
+    }
+
+    .card {
+      background: #ffffff;
+      border: 1px solid #e3e6ea;
+      border-radius: 10px;
+      padding: 16px;
+      box-shadow: 0 10px 20px rgba(20, 20, 20, 0.06);
+    }
+
+    .secondary-btn {
+      background: #e6e9ed;
+      color: #1f2328;
+      border: 1px solid #cfd6dd;
+      border-radius: 4px;
+      padding: 8px 12px;
+      text-decoration: none;
+      display: inline-block;
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .limit-row {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .limit-label {
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .limits input[type="number"] {
+      width: 200px;
+      background: #f7f8fa;
+      border: 1px solid #cfd6dd;
+      border-radius: 6px;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      font-family: inherit;
+      font-size: 14px;
+      color: #1f2328;
+    }
+
+    .limit-stats {
+      margin-top: 12px;
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+      gap: 10px;
+    }
+
+    .limit-stat {
+      background: #f7f8fa;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 10px;
+      font-size: 13px;
+    }
+
+    .limit-stat span {
+      display: block;
+      color: #6a737d;
+      font-size: 12px;
+      margin-bottom: 4px;
+    }
+
+    .muted {
+      color: #7a838c;
+      font-size: 13px;
+      margin: 10px 0 0;
+    }
+
+    .deals {
+      margin-top: 24px;
+    }
+
+    .section-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: baseline;
+      gap: 12px;
+      flex-wrap: wrap;
+    }
+
+    .export {
+      margin-top: 24px;
+    }
+
+    .export-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .export-output {
+      width: 100%;
+      min-height: 140px;
+      background: #f7f8fa;
+      border: 1px solid #cfd6dd;
+      border-radius: 6px;
+      padding: 10px;
+      box-sizing: border-box;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 12px;
+      color: #1f2328;
+      resize: vertical;
+    }
+
+    .board {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(200px, 1fr));
+      gap: 16px;
+      margin-top: 12px;
+    }
+
+    .board-column {
+      background: #f7f8fa;
+      border: 1px dashed #d5dbe0;
+      border-radius: 10px;
+      padding: 10px;
+      min-height: 260px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .board-column.drag-over {
+      background: #eef4f1;
+      border-color: #9bb7aa;
+    }
+
+    .board-title {
+      font-size: 13px;
+      font-weight: bold;
+      color: #4b535b;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+    }
+
+    .board-list {
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      min-height: 200px;
+    }
+
+    .deal-card {
+      background: #ffffff;
+      border: 1px solid #e3e6ea;
+      border-radius: 10px;
+      padding: 10px;
+      box-shadow: 0 8px 16px rgba(20, 20, 20, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      cursor: grab;
+    }
+
+    .deal-card.active {
+      border-color: #8fb0a3;
+      box-shadow: 0 0 0 2px rgba(31, 122, 92, 0.2);
+    }
+
+    .deal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .deal-title {
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .deal-tag {
+      font-size: 10px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #e9f3ef;
+      color: #1f7a5c;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .deal-tag.sell {
+      background: #fde9e7;
+      color: #b53a32;
+    }
+
+    .deal-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .meta-item {
+      background: #f7f8fa;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 6px;
+      font-size: 12px;
+    }
+
+    .meta-item span {
+      display: block;
+      color: #6a737d;
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+
+    .profit {
+      color: #26a69a;
+      font-weight: bold;
+    }
+
+    .loss {
+      color: #ef5350;
+      font-weight: bold;
+    }
+
+    .image-input label {
+      display: block;
+      font-size: 12px;
+      font-weight: bold;
+      margin-bottom: 4px;
+    }
+
+    .image-input input[type="file"] {
+      width: 100%;
+      font-size: 12px;
+    }
+
+    .preview {
+      margin-top: 6px;
+      background: #f7f8fa;
+      border: 1px dashed #d5dbe0;
+      border-radius: 8px;
+      min-height: 70px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      padding: 8px;
+      box-sizing: border-box;
+    }
+
+    .preview img {
+      max-width: 100%;
+      height: auto;
+      border-radius: 6px;
+    }
+
+    .preview span {
+      color: #7a838c;
+      font-size: 11px;
+    }
+
+    .warning {
+      margin-top: 22px;
+      padding: 12px 14px;
+      background: #fff4d6;
+      border: 1px solid #f1d59b;
+      border-radius: 8px;
+      color: #7a5a00;
+      font-size: 13px;
+    }
+
+    @media (max-width: 1100px) {
+      .board {
+        grid-template-columns: repeat(2, minmax(200px, 1fr));
+      }
+    }
+
+    @media (max-width: 720px) {
+      .page {
+        margin-top: 20px;
+        padding: 0 14px;
+      }
+
+      .page-header {
+        flex-direction: column;
+        align-items: flex-start;
+      }
+
+      .board {
+        grid-template-columns: 1fr;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="page">
+    <header class="page-header">
+      <div>
+        <h1>Выбор сделок</h1>
+        <p class="subhead">Сделки и лимит в одном месте. Графики добавляются только для этой страницы.</p>
+      </div>
+      <a class="secondary-btn" href="../index.html">Назад к калькулятору</a>
+    </header>
+
+    <section class="limits card">
+      <h2>Лимит торговли</h2>
+      <div class="limit-row">
+        <label class="limit-label" for="limitsValue">Лимит, USD</label>
+        <input id="limitsValue" type="number" min="0" step="1" placeholder="Например: 500">
+      </div>
+      <div class="limit-row">
+        <label class="limit-label" for="depositValue">Депозит, USD</label>
+        <input id="depositValue" type="number" min="0" step="1" placeholder="Например: 1000">
+      </div>
+      <div class="limit-stats">
+        <div class="limit-stat">
+          <span>Потеря при SL, USD</span>
+          <strong id="limitLossUsd">-</strong>
+        </div>
+        <div class="limit-stat">
+          <span>Потеря от депозита, %</span>
+          <strong id="limitLossPct">-</strong>
+        </div>
+        <div class="limit-stat">
+          <span>Использование лимита, %</span>
+          <strong id="limitUsagePct">-</strong>
+        </div>
+      </div>
+      <p class="muted">Лимит сохраняется в браузере. Проценты профита/убытка считаются от указанного депозита.</p>
+    </section>
+
+    <section class="deals">
+      <div class="section-head">
+        <h2>Сохраненные сделки</h2>
+        <span id="dealCount" class="muted"></span>
+      </div>
+      <p id="noDeals" class="muted">Сохраненных сделок пока нет.</p>
+      <div class="board" id="dealBoard">
+        <div class="board-column" data-group="primary">
+          <div class="board-title">Ближайшая реализация</div>
+          <div class="board-list" id="groupPrimary"></div>
+        </div>
+        <div class="board-column" data-group="reserve">
+          <div class="board-title">Запасные</div>
+          <div class="board-list" id="groupReserve"></div>
+        </div>
+        <div class="board-column" data-group="extra">
+          <div class="board-title">Дополнительные возможности</div>
+          <div class="board-list" id="groupExtra"></div>
+        </div>
+        <div class="board-column" data-group="pool">
+          <div class="board-title">Сделки</div>
+          <div class="board-list" id="groupPool"></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="export card">
+      <h2>Экспорт</h2>
+      <div class="export-actions">
+        <button type="button" class="secondary-btn" id="exportCalcBtn">Экспорт для калькулятора</button>
+        <button type="button" class="secondary-btn" id="exportChoiceBtn">Экспорт для подбора</button>
+        <button type="button" class="secondary-btn" id="exportPublishBtn">Экспорт для публикации</button>
+      </div>
+      <textarea id="exportOutput" class="export-output" readonly placeholder="Текст экспорта появится здесь."></textarea>
+      <p class="muted">Для импорта скопируйте текст и вставьте его на нужной странице.</p>
+      <h2>Импорт</h2>
+      <textarea id="importInput" class="export-output" placeholder="Вставьте экспорт из калькулятора или подбора."></textarea>
+      <div class="export-actions">
+        <button type="button" class="secondary-btn" id="importChoiceBtn">Импортировать</button>
+      </div>
+    </section>
+
+    <div class="warning">Перед выходом из страницы изменения и добавленные изображения не сохраняются.</div>
+  </main>
+
+  <script src="choice.js"></script>
+</body>
+</html>

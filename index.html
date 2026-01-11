@@ -4,20 +4,24 @@
   <meta charset="UTF-8">
   <title>Калькулятор позиций</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
-  <style>
+  
+   <style>
     body {
       font-family: Arial, sans-serif;
-      background: #121212;
+      background: #f4f6f8;
       margin: 0;
       padding: 20px;
-      color: #fff;
+      color: #1f2328;
     }
 
     .calculator {
-      background: #1e1e1e;
+      background: #ffffff;
+      max-width: 600px;
       margin: 40px auto;
       padding: 25px;
       border-radius: 8px;
+      box-shadow: 0 12px 24px rgba(20, 20, 20, 0.08);
+      border: 1px solid #e3e6ea;
       transition: border-left .2s;
     }
 
@@ -34,7 +38,7 @@
     label {
       margin-top: 15px;
       font-weight: bold;
-      color: #ccc;
+      color: #4b535b;
     }
 
     input,
@@ -42,10 +46,10 @@
     textarea {
       padding: 8px;
       margin-top: 5px;
-      background: #2a2a2a;
-      border: 1px solid #555;
+      background: #f7f8fa;
+      border: 1px solid #cfd6dd;
       border-radius: 4px;
-      color: #fff;
+      color: #1f2328;
       font-family: inherit;
       font-size: 14px;
       box-sizing: border-box;
@@ -86,7 +90,8 @@
     }
 
     .secondary-btn {
-      background: #424242;
+      background: #e6e9ed;
+      color: #1f2328;
     }
 
     #result {
@@ -109,8 +114,8 @@
       text-align: center;
       padding: 8px 0;
       font-weight: bold;
-      border-top: 1px solid #555;
-      border-bottom: 1px solid #555;
+      border-top: 1px solid #d6dbe0;
+      border-bottom: 1px solid #d6dbe0;
       margin: 10px 0;
     }
 
@@ -133,7 +138,7 @@
       border-left: 4px solid #f39c12;
     }
 
-    .calculator.index-selected {
+    .calculator.stock-selected {
       border-left: 4px solid #3498db;
     }
 
@@ -145,7 +150,7 @@
       background: #f39c12;
     }
 
-    .calculator.index-selected button[type="submit"] {
+    .calculator.stock-selected button[type="submit"] {
       background: #3498db;
     }
 
@@ -192,7 +197,7 @@
     .saved-table th,
     .saved-table td {
       padding: 6px 4px;
-      border-bottom: 1px solid #333;
+      border-bottom: 1px solid #e2e6ea;
       white-space: nowrap;
       font-size: 13px;
       vertical-align: top;
@@ -200,7 +205,7 @@
 
     .saved-table th {
       text-align: left;
-      color: #ccc;
+      color: #4b535b;
       font-weight: bold;
     }
 
@@ -217,10 +222,66 @@
       white-space: normal;
     }
 
+    .import-section {
+      margin-top: 16px;
+      padding: 12px;
+      background: #f7f8fa;
+      border: 1px solid #cfd6dd;
+      border-radius: 6px;
+    }
+
+    .import-section h3 {
+      margin: 0 0 8px;
+      font-size: 16px;
+    }
+
+    .import-section textarea {
+      width: 100%;
+      min-height: 120px;
+      background: #ffffff;
+      border: 1px solid #cfd6dd;
+      border-radius: 4px;
+      padding: 8px;
+      box-sizing: border-box;
+      font-family: inherit;
+      font-size: 13px;
+      color: #1f2328;
+      resize: vertical;
+    }
+
+    .import-actions {
+      margin-top: 8px;
+      display: flex;
+      justify-content: flex-end;
+    }
+
+    .import-note {
+      color: #7a838c;
+      margin: 8px 0 0;
+      font-size: 12px;
+      text-align: left;
+    }
+
     .muted {
-      color: #777;
+      color: #7a838c;
       margin-top: 8px;
       text-align: center;
+    }
+
+    .saved-footer {
+      display: flex;
+      justify-content: center;
+      margin-top: 16px;
+      width: 100%;
+    }
+
+    .choice-link {
+      display: block;
+      width: 100%;
+      padding: 10px 14px;
+      text-align: center;
+      text-decoration: none;
+      border-radius: 4px;
     }
 
     @media(max-width:480px) {
@@ -242,6 +303,7 @@
       }
     }
   </style>
+
 </head>
 <body>
   <div class="calculator" id="calculatorBox">
@@ -372,7 +434,18 @@
           <tbody id="savedDealsBody"></tbody>
         </table>
       </div>
+      <div class="import-section">
+        <h3>Импорт сделок</h3>
+        <textarea id="importDealsText" placeholder="Вставьте экспорт из калькулятора или подбора."></textarea>
+        <div class="import-actions">
+          <button type="button" id="importDealsBtn" class="secondary-btn">Импортировать в калькулятор</button>
+        </div>
+        <p class="import-note">Если нужно заменить сделки, сначала нажмите «Очистить все».</p>
+      </div>
       <p id="noDealsMessage" class="muted">Сохранённых сделок пока нет.</p>
+      <div class="saved-footer">
+        <a class="secondary-btn choice-link" href="choice/index.html" target="_blank" rel="noopener">Выбрать сделки</a>
+      </div>
     </div>
   </div>
 

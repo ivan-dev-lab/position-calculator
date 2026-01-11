@@ -145,7 +145,7 @@ function renderSavedDeals() {
         <textarea data-id="${d.id}" placeholder="Комментарий к сделке"></textarea>
       </td>
       <td class="deal-actions">
-        <button type="button" data-id="${d.id}">Удалить</button>
+        <button type="button" data-id="${d.id}" class="secondary-btn">Удалить</button>
       </td>
     `;
     tbody.appendChild(tr);
@@ -177,6 +177,47 @@ function loadSavedDealsFromStorage() {
 
 function deleteDeal(id) {
   savedDeals = savedDeals.filter(d => String(d.id) !== String(id));
+  saveDealsToStorage();
+  renderSavedDeals();
+}
+
+function ensureDealIds(deals) {
+  const usedIds = new Set(savedDeals.map(d => String(d.id)));
+  deals.forEach((deal) => {
+    if (!deal || typeof deal !== 'object') return;
+    let id = deal.id ? String(deal.id) : '';
+    if (!id || usedIds.has(id)) {
+      id = `${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+      deal.id = id;
+    }
+    usedIds.add(id);
+  });
+}
+
+function importDealsFromText(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    alert('Не удалось разобрать текст импорта.');
+    return;
+  }
+
+  let deals = null;
+  if (Array.isArray(parsed)) {
+    deals = parsed;
+  } else if (parsed && typeof parsed === 'object') {
+    if (Array.isArray(parsed.deals)) deals = parsed.deals;
+  }
+
+  if (!deals) {
+    alert('В тексте импорта нет списка сделок.');
+    return;
+  }
+
+  const normalized = deals.filter(item => item && typeof item === 'object');
+  ensureDealIds(normalized);
+  savedDeals = savedDeals.concat(normalized);
   saveDealsToStorage();
   renderSavedDeals();
 }
@@ -390,6 +431,17 @@ document.addEventListener('DOMContentLoaded', () => {
         saveDealsToStorage();
         renderSavedDeals();
       }
+    });
+  }
+
+  const importBtn = document.getElementById('importDealsBtn');
+  if (importBtn) {
+    importBtn.addEventListener('click', () => {
+      const input = document.getElementById('importDealsText');
+      if (!input) return;
+      const text = input.value.trim();
+      if (!text) return;
+      importDealsFromText(text);
     });
   }
 

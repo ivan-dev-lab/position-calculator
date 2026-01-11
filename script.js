@@ -488,6 +488,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const text = input.value.trim();
       if (!text) return;
       importDealsFromText(text);
+      input.value = '';
     });
   }
 

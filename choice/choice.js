@@ -300,6 +300,7 @@ function buildPublicationExport() {
     });
     if (!deals.length) return;
 
+    if (lines.length) lines.push('');
     lines.push(title);
 
     deals.sort((a, b) => (a.created || 0) - (b.created || 0));
@@ -312,18 +313,19 @@ function buildPublicationExport() {
     });
 
     for (const [pair, pairDeals] of byPair.entries()) {
+      if (lines[lines.length - 1] !== title) lines.push('');
       lines.push(pair);
-      pairDeals.forEach((deal) => {
+      pairDeals.forEach((deal, idx) => {
         const dealIndex = dealIndexMap.get(deal);
         const id = getDealId(deal, dealIndex);
         const number = dealNumberById[id] || 1;
+        if (idx > 0) lines.push('');
         lines.push(`#${number}`);
         lines.push(`Entry: ${formatExportValue(deal.open)}`);
         lines.push(`TP: ${formatExportValue(deal.tp)}`);
         lines.push(`SL: ${formatExportValue(deal.sl)}`);
         lines.push(`VOL: ${formatExportValue(deal.lots)}`);
       });
-      lines.push('');
     }
   });
 

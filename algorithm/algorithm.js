@@ -9,7 +9,7 @@ const DEFAULT_SETTINGS = {
 };
 
 const INDEX_SYMBOLS = {
-  GER40: '^DAX',
+  GER40: '^dax',
   SPX500: '^SPX'
 };
 
@@ -21,6 +21,7 @@ const METAL_PRICE_FIELDS = {
 const STABLE_COINS = ['USDT', 'USDC', 'DAI', 'TUSD', 'USDP'];
 const CRYPTO_BASES = ['BTC', 'ETH'];
 const PRICE_REFRESH_MS = 60000;
+const MIN_LOT = 0.01;
 
 const EPSILON = 1e-9;
 const MAX_ITER = 50;
@@ -219,7 +220,9 @@ async function fetchPriceForPair(pair) {
 function normalizeSettings(raw) {
   const totalRisk = toNumber(raw.totalRisk, DEFAULT_SETTINGS.totalRisk);
   const maxRisk = toNumber(raw.maxRisk, DEFAULT_SETTINGS.maxRisk);
-  const usefulnessShare = clamp(toNumber(raw.usefulnessShare, DEFAULT_SETTINGS.usefulnessShare), 0, 1);
+  let usefulnessShare = toNumber(raw.usefulnessShare, DEFAULT_SETTINGS.usefulnessShare);
+  if (usefulnessShare > 1) usefulnessShare = usefulnessShare / 100;
+  usefulnessShare = clamp(usefulnessShare, 0, 1);
   return {
     totalRisk,
     maxRisk,
@@ -237,6 +240,10 @@ function loadDeals() {
     console.warn('Не удалось загрузить сделки:', err);
     return [];
   }
+}
+
+function saveDeals() {
+  localStorage.setItem(DEALS_KEY, JSON.stringify(currentDeals));
 }
 
 function loadSettings() {
@@ -290,6 +297,20 @@ function formatUpdateTime(date) {
   return date.toLocaleTimeString('ru-RU', { hour: '2-digit', minute: '2-digit' });
 }
 
+function normalizeInputPair(value) {
+  return String(value || '').trim().toUpperCase().replace(/\s+/g, '');
+}
+
+function getDefaultDepositValue() {
+  const deal = currentDeals.find((item) => Number.isFinite(item.dep) && item.dep > 0);
+  return deal ? Number(item.dep) : 1000;
+}
+
+function getDefaultDepositCurrency() {
+  const deal = currentDeals.find((item) => item && item.depCur);
+  return deal ? String(deal.depCur).toUpperCase() : 'USD';
+}
+
 async function updatePrices(force = false) {
   if (isPriceLoading) return;
   isPriceLoading = true;
@@ -297,7 +318,6 @@ async function updatePrices(force = false) {
 
   const refreshBtn = document.getElementById('refreshPricesBtn');
   if (refreshBtn) refreshBtn.disabled = true;
-  setPriceStatus('Загружаю цены...');
 
   const pairs = Array.from(
     new Set(
@@ -313,7 +333,6 @@ async function updatePrices(force = false) {
   );
 
   if (!pairs.length) {
-    setPriceStatus('Нет сделок с автоценой для обновления.');
     if (refreshBtn) refreshBtn.disabled = false;
     isPriceLoading = false;
     return;
@@ -351,11 +370,113 @@ async function updatePrices(force = false) {
   if (timeText) statusText += ` • ${timeText}`;
   if (missingPairs.length) statusText += `. Нет цены для: ${missingPairs.join(', ')}`;
   if (PRICE_REFRESH_MS > 0) statusText += ` • автообновление ${Math.round(PRICE_REFRESH_MS / 1000)}с`;
-  setPriceStatus(statusText);
 
   if (refreshBtn) refreshBtn.disabled = false;
   isPriceLoading = false;
   runAndRender();
+}
+
+function updateAddFormDefaults() {
+  const pairSelect = document.getElementById('addPair');
+  if (pairSelect && pairSelect.selectedIndex < 0) {
+    pairSelect.selectedIndex = 0;
+  }
+}
+
+function addDealFromForm() {
+  const pairSelect = document.getElementById('addPair');
+  const entryInput = document.getElementById('addEntry');
+  const slInput = document.getElementById('addSl');
+  const tpInput = document.getElementById('addTp');
+  const atrInput = document.getElementById('addAtr');
+
+  if (!pairSelect || !entryInput || !slInput || !tpInput) return;
+
+  const pair = normalizeInputPair(pairSelect.value);
+  if (!pair) {
+    alert('Введите актив.');
+    pairSelect.focus();
+    return;
+  }
+
+  const entry = toNullableNumber(entryInput.value);
+  const sl = toNullableNumber(slInput.value);
+  const tp = toNullableNumber(tpInput.value);
+  if (!Number.isFinite(entry) || !Number.isFinite(sl) || !Number.isFinite(tp)) {
+    alert('Введите Entry, SL и TP.');
+    return;
+  }
+  if (entry === sl) {
+    alert('Entry и SL не должны совпадать.');
+    return;
+  }
+
+  const atr = toNullableNumber(atrInput ? atrInput.value : null);
+  const deposit = getDefaultDepositValue();
+  const depCur = getDefaultDepositCurrency();
+  const direction = tp >= entry ? 'BUY' : 'SELL';
+
+  const id = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
+  const created = Date.now();
+
+  const newDeal = {
+    id,
+    pair,
+    dep: deposit,
+    depCur,
+    open: entry,
+    tp,
+    sl,
+    lots: MIN_LOT,
+    leverage: 1,
+    margin: 0,
+    profit: 0,
+    loss: 0,
+    profitDepPct: 0,
+    lossDepPct: 0,
+    profitPosPct: 0,
+    lossPosPct: 0,
+    direction,
+    created,
+    comment: 'добавлено без ручного расчета'
+  };
+
+  currentDeals.push(newDeal);
+  saveDeals();
+
+  dealParams[id] = {
+    enabled: true,
+    priceMode: 'auto',
+    manualPrice: null,
+    entry,
+    sl,
+    tp,
+    atr: Number.isFinite(atr) ? atr : null
+  };
+  saveParams(dealParams);
+
+  renderDeals(currentDeals);
+  updateAddFormDefaults();
+  updatePrices(true);
+
+  if (pairSelect) pairSelect.selectedIndex = 0;
+  entryInput.value = '';
+  slInput.value = '';
+  tpInput.value = '';
+  if (atrInput) atrInput.value = '';
+  pairSelect.focus();
+}
+
+function deleteDealById(id) {
+  const index = currentDeals.findIndex((deal, idx) => getDealId(deal, idx) === id);
+  if (index < 0) return;
+  currentDeals.splice(index, 1);
+  delete dealParams[id];
+  saveDeals();
+  saveParams(dealParams);
+  renderDeals(currentDeals);
+  updateAddFormDefaults();
+  updatePrices(true);
 }
 
 function deriveMetrics(params, deal, priceNowRaw) {
@@ -618,7 +739,8 @@ function runAlgorithm(deals, paramsById, rawSettings, pricesByPair) {
   for (const deal of sorted) {
     activeSet.push(deal);
     activeIds.add(deal.id);
-    reasonById[deal.id] = '80% полезности';
+    const sharePctLabel = Math.round(currentSettings.usefulnessShare * 100);
+    reasonById[deal.id] = `${sharePctLabel}% полезности`;
     cumulative += deal.weight;
     if (cumulative >= targetWeight) break;
   }
@@ -673,7 +795,8 @@ function runAlgorithm(deals, paramsById, rawSettings, pricesByPair) {
 
   candidates.forEach((deal) => {
     const risk = riskById.get(deal.id) || 0;
-    let status = 'Вне 80% полезности';
+    const sharePctLabel = Math.round(currentSettings.usefulnessShare * 100);
+    let status = `Вне ${sharePctLabel}% полезности`;
     if (!deal.enabled) status = 'Выключена';
     else if (!deal.valid) status = 'Нет данных';
     else if (deal.weight <= 0) status = 'Вес <= 0';
@@ -773,8 +896,8 @@ function renderDeals(deals) {
         </div>
       </td>
       <td><input type="number" data-field="entry" data-id="${id}" step="0.00001" min="0"></td>
-      <td><input type="number" data-field="sl" data-id="${id}" step="0.00001" min="0"></td>
       <td><input type="number" data-field="tp" data-id="${id}" step="0.00001" min="0"></td>
+      <td><input type="number" data-field="sl" data-id="${id}" step="0.00001" min="0"></td>
       <td><input type="number" data-field="atr" data-id="${id}" step="0.00001" min="0"></td>
       <td data-field="rr">-</td>
       <td data-field="danger">-</td>
@@ -782,6 +905,9 @@ function renderDeals(deals) {
       <td data-field="weight">-</td>
       <td data-field="risk">-</td>
       <td><span class="status-tag" data-field="status">-</span></td>
+      <td class="deal-actions">
+        <button type="button" class="secondary-btn" data-action="delete" data-id="${id}">Удалить</button>
+      </td>
     `;
     body.appendChild(row);
 
@@ -789,8 +915,8 @@ function renderDeals(deals) {
     const modeSelect = row.querySelector('select[data-field="priceMode"]');
     const manualInput = row.querySelector('input[data-field="manualPrice"]');
     const entryInput = row.querySelector('input[data-field="entry"]');
-    const slInput = row.querySelector('input[data-field="sl"]');
     const tpInput = row.querySelector('input[data-field="tp"]');
+    const slInput = row.querySelector('input[data-field="sl"]');
     const atrInput = row.querySelector('input[data-field="atr"]');
 
     if (enabledInput) enabledInput.checked = params.enabled !== false;
@@ -871,7 +997,7 @@ function applySettingsToInputs(nextSettings) {
   const shareInput = document.getElementById('usefulnessShare');
   if (totalInput) totalInput.value = nextSettings.totalRisk;
   if (maxInput) maxInput.value = nextSettings.maxRisk;
-  if (shareInput) shareInput.value = nextSettings.usefulnessShare;
+  if (shareInput) shareInput.value = Math.round(nextSettings.usefulnessShare * 100);
 }
 
 function runAndRender() {
@@ -912,6 +1038,15 @@ function setupPriceControls() {
   }
 }
 
+function setupAddDealControls() {
+  const addBtn = document.getElementById('addDealBtn');
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      addDealFromForm();
+    });
+  }
+}
+
 function startAutoPriceRefresh() {
   if (PRICE_REFRESH_MS <= 0) return;
   setInterval(() => {
@@ -937,6 +1072,16 @@ function setupDealListeners() {
     dealParams[id] = params;
     saveParams(dealParams);
     runAndRender();
+  });
+
+  body.addEventListener('click', (event) => {
+    const btn = event.target.closest('button[data-action="delete"][data-id]');
+    if (!btn) return;
+    const id = btn.dataset.id;
+    if (!id) return;
+    if (confirm('Удалить сделку?')) {
+      deleteDealById(id);
+    }
   });
 
   body.addEventListener('change', (event) => {
@@ -985,7 +1130,9 @@ applySettingsToInputs(settings);
 renderDeals(currentDeals);
 setupSettingsListeners();
 setupPriceControls();
+setupAddDealControls();
 setupDealListeners();
 runAndRender();
 updatePrices(true);
 startAutoPriceRefresh();
+updateAddFormDefaults();

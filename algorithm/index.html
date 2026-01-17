@@ -2,7 +2,7 @@
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
-  <title>Алгоритм отбора сделок</title>
+  <title>Алгоритм QWF80</title>
   <meta name="viewport" content="width=device-width,initial-scale=1">
   <style>
     body {
@@ -110,7 +110,8 @@
       letter-spacing: 0.4px;
     }
 
-    .field input {
+    .field input,
+    .field select {
       background: #ffffff;
       border: 1px solid #cfd6dd;
       border-radius: 6px;
@@ -159,9 +160,10 @@
 
     .deals-table {
       width: 100%;
-      min-width: 1200px;
+      min-width: 1400px;
       border-collapse: collapse;
       font-size: 13px;
+      table-layout: fixed;
     }
 
     .deals-table th,
@@ -170,6 +172,9 @@
       border-bottom: 1px solid #e2e6ea;
       text-align: left;
       vertical-align: middle;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
     }
 
     .deals-table th {
@@ -232,6 +237,11 @@
       color: #6a737d;
     }
 
+    .section-divider {
+      margin: 18px 0;
+      border-top: 1px solid #e2e6ea;
+    }
+
     .price-cell {
       display: flex;
       flex-direction: column;
@@ -242,6 +252,76 @@
     .price-value {
       font-weight: bold;
     }
+
+    .deal-actions {
+      text-align: center;
+    }
+
+    .deal-actions .secondary-btn {
+      padding: 4px 8px;
+      font-size: 12px;
+    }
+
+    .deals-table th:nth-child(1),
+    .deals-table td:nth-child(1) {
+      width: 36px;
+    }
+
+    .deals-table th:nth-child(2),
+    .deals-table td:nth-child(2) {
+      width: 40px;
+    }
+
+    .deals-table th:nth-child(3),
+    .deals-table td:nth-child(3) {
+      width: 90px;
+    }
+
+    .deals-table th:nth-child(4),
+    .deals-table td:nth-child(4) {
+      width: 150px;
+    }
+
+    .deals-table th:nth-child(5),
+    .deals-table td:nth-child(5),
+    .deals-table th:nth-child(6),
+    .deals-table td:nth-child(6),
+    .deals-table th:nth-child(7),
+    .deals-table td:nth-child(7),
+    .deals-table th:nth-child(8),
+    .deals-table td:nth-child(8) {
+      width: 90px;
+    }
+
+    .deals-table th:nth-child(9),
+    .deals-table td:nth-child(9),
+    .deals-table th:nth-child(10),
+    .deals-table td:nth-child(10),
+    .deals-table th:nth-child(11),
+    .deals-table td:nth-child(11) {
+      width: 80px;
+    }
+
+    .deals-table th:nth-child(12),
+    .deals-table td:nth-child(12) {
+      width: 90px;
+    }
+
+    .deals-table th:nth-child(13),
+    .deals-table td:nth-child(13) {
+      width: 80px;
+    }
+
+    .deals-table th:nth-child(14),
+    .deals-table td:nth-child(14) {
+      width: 180px;
+    }
+
+    .deals-table th:nth-child(15),
+    .deals-table td:nth-child(15) {
+      width: 90px;
+    }
+
 
     .muted {
       color: #7a838c;
@@ -266,8 +346,7 @@
   <main class="page">
     <header class="page-header">
       <div>
-        <h1>Алгоритм отбора и распределения риска</h1>
-        <p class="subhead">Режим A (строго): риск не превышает общий бюджет и лимит на сделку.</p>
+        <h1>Алгоритм QWF80</h1>
       </div>
       <div class="header-actions">
         <a class="secondary-btn" href="../choice/index.html">Назад к выбору</a>
@@ -279,7 +358,6 @@
       <div class="section-head">
         <div>
           <h2>Параметры расчета</h2>
-          <p class="subhead">RR, Danger и Close считаются автоматически по цене, SL, TP и ATR. Вес = RR / ((1 + Danger)^2 * (1 + Close)). Цену можно переключить на ручной ввод.</p>
         </div>
         <div class="header-actions">
           <button class="secondary-btn" id="refreshPricesBtn" type="button">Обновить цены</button>
@@ -289,16 +367,16 @@
       <p id="priceStatus" class="note muted"></p>
       <div class="settings-grid">
         <div class="field">
-          <label for="riskTotal">R_total_pct, %</label>
+          <label for="riskTotal">Суммарный допустимый риск, %</label>
           <input id="riskTotal" type="number" min="0" step="0.01">
         </div>
         <div class="field">
-          <label for="riskMax">R_max_pct, %</label>
+          <label for="riskMax">Максимальный риск на сделку, %</label>
           <input id="riskMax" type="number" min="0" step="0.01">
         </div>
         <div class="field">
-          <label for="usefulnessShare">usefulness_share (0–1)</label>
-          <input id="usefulnessShare" type="number" min="0" max="1" step="0.01">
+          <label for="usefulnessShare">Фильтр, %</label>
+          <input id="usefulnessShare" type="number" min="10" max="90" step="1" value="80">
         </div>
       </div>
       <div class="summary-grid">
@@ -320,6 +398,63 @@
         </div>
       </div>
       <p id="summaryNote" class="note muted"></p>
+      <div class="section-divider"></div>
+      <div class="section-head">
+        <div>
+          <h2>Добавить сделку</h2>
+          <p class="subhead">Сделка сохранится в браузере и появится в калькуляторе.</p>
+        </div>
+        <button class="primary-btn" id="addDealBtn" type="button">Добавить сделку</button>
+      </div>
+      <div class="settings-grid">
+        <div class="field">
+          <label for="addPair">Актив</label>
+          <select id="addPair">
+            <optgroup label="Core">
+              <option value="EUR/USD">EUR/USD</option>
+              <option value="GBP/USD">GBP/USD</option>
+              <option value="USD/JPY">USD/JPY</option>
+            </optgroup>
+            <optgroup label="Alternative">
+              <option value="NZD/USD">NZD/USD</option>
+              <option value="EUR/GBP">EUR/GBP</option>
+            </optgroup>
+            <optgroup label="Exotic">
+              <option value="USD/CHF">USD/CHF</option>
+              <option value="USD/CAD">USD/CAD</option>
+              <option value="AUD/USD">AUD/USD</option>
+            </optgroup>
+            <optgroup label="Metalls">
+              <option value="XAUUSD">XAU/USD</option>
+              <option value="XAGUSD">XAG/USD</option>
+            </optgroup>
+            <optgroup label="Crypto">
+              <option value="BTCUSDT">BTCUSDT</option>
+              <option value="ETHUSDT">ETHUSDT</option>
+            </optgroup>
+            <optgroup label="Indexes">
+              <option value="GER40">GER40</option>
+              <option value="SPX500">SPX500</option>
+            </optgroup>
+          </select>
+        </div>
+        <div class="field">
+          <label for="addEntry">Entry</label>
+          <input id="addEntry" type="number" step="0.00001" min="0">
+        </div>
+        <div class="field">
+          <label for="addTp">TP</label>
+          <input id="addTp" type="number" step="0.00001" min="0">
+        </div>
+        <div class="field">
+          <label for="addSl">SL</label>
+          <input id="addSl" type="number" step="0.00001" min="0">
+        </div>
+        <div class="field">
+          <label for="addAtr">ATR</label>
+          <input id="addAtr" type="number" step="0.00001" min="0">
+        </div>
+      </div>
     </section>
 
     <section class="deals card">
@@ -333,19 +468,20 @@
           <thead>
             <tr>
               <th>Вкл</th>
-              <th>#</th>
+              <th></th>
               <th>Актив</th>
-              <th>Цена сейчас</th>
+              <th>Текущая цена</th>
               <th>Entry</th>
-              <th>SL</th>
               <th>TP</th>
+              <th>SL</th>
               <th>ATR</th>
               <th>RR</th>
               <th>Danger</th>
               <th>Close</th>
               <th>Weight</th>
-              <th>Risk, %</th>
+              <th>Risk %</th>
               <th>Статус</th>
+              <th></th>
             </tr>
           </thead>
           <tbody id="dealsBody"></tbody>
@@ -353,8 +489,11 @@
       </div>
       <p class="muted">Параметры сделок сохраняются в браузере.</p>
     </section>
-  </main>
+
+    </main>
 
   <script src="algorithm.js"></script>
 </body>
 </html>
+
+

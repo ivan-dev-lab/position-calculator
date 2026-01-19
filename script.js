@@ -3,6 +3,19 @@ const INDEXES = {
   SPX500: { quote: 'USD', contractSize: 50 }
 };
 
+function formatDateTime(value) {
+  if (value === null || value === undefined || value === '') return '-';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return '-';
+  const pad = (num) => String(num).padStart(2, '0');
+  const day = pad(date.getDate());
+  const month = pad(date.getMonth() + 1);
+  const year = date.getFullYear();
+  const hours = pad(date.getHours());
+  const minutes = pad(date.getMinutes());
+  return `${day}.${month}.${year}, ${hours}:${minutes}`;
+}
+
 // ==== вспомогательные словари ====
 const CONTRACT_SIZES = {
   'XAUUSD': 100,
@@ -135,6 +148,7 @@ function renderSavedDeals() {
       <td>${d.direction}</td>
       <td>${d.lots}</td>
       <td>${d.leverage}x</td>
+      <td>${formatDateTime(d.created)}</td>
       <td class="profit">${d.profit.toFixed(2)} ${d.depCur}</td>
       <td class="loss">${d.loss.toFixed(2)} ${d.depCur}</td>
       <td class="profit">${d.profitDepPct.toFixed(2)} %</td>
@@ -444,7 +458,9 @@ document.addEventListener('DOMContentLoaded', () => {
       const id = btn.getAttribute('data-id');
       const action = btn.getAttribute('data-action');
       if (action === 'delete') {
-        deleteDeal(id);
+        if (confirm('Удалить сохраненную сделку?')) {
+          deleteDeal(id);
+        }
       } else if (action === 'edit') {
         startEditDeal(id);
       }

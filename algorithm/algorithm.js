@@ -360,7 +360,7 @@ function normalizeInputPair(value) {
 
 function getDefaultDepositValue() {
   const deal = currentDeals.find((item) => Number.isFinite(item.dep) && item.dep > 0);
-  return deal ? Number(item.dep) : 1000;
+  return deal ? Number(deal.dep) : 1000;
 }
 
 function getDefaultDepositCurrency() {

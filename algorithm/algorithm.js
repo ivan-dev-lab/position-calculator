@@ -938,9 +938,24 @@ function formatPercent(value) {
   return `${value.toFixed(2)} %`;
 }
 
+function formatPercentCompact(value) {
+  if (!Number.isFinite(value)) return '-';
+  return `${value.toFixed(2).replace(/\.?0+$/, '')}%`;
+}
+
 function formatMoney(value, currency) {
   if (!Number.isFinite(value)) return '-';
   return `${value.toFixed(2)} ${currency}`;
+}
+
+function formatMoneyCompact(value, currency) {
+  if (!Number.isFinite(value)) return '-';
+  const label = String(currency || '').toUpperCase();
+  const suffix = label === 'USD' ? '$' : label;
+  const amount = Math.abs(value).toFixed(2).replace(/\.?0+$/, '');
+  if (!suffix) return amount;
+  if (suffix === '$') return `${amount}$`;
+  return `${amount} ${suffix}`;
 }
 
 function formatLots(value) {
@@ -1347,6 +1362,9 @@ async function buildPublicationExport(results) {
         lines.push(`TP: ${formatExportValue(item.tp)}`);
         lines.push(`SL: ${formatExportValue(item.sl)}`);
         lines.push(`VOL: ${formatExportValue(volume)}`);
+        const riskPct = calc.error ? '-' : formatPercentCompact(calc.lossDepPct);
+        const riskMoney = calc.error ? '-' : formatMoneyCompact(calc.loss, item.depCur);
+        lines.push(`RISK: ${riskPct} | ${riskMoney}`);
       });
   }
 

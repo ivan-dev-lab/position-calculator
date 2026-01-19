@@ -262,6 +262,116 @@
       font-size: 12px;
     }
 
+    .results {
+      margin-top: 24px;
+    }
+
+    .results-grid {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(240px, 1fr));
+      gap: 14px;
+      margin-top: 12px;
+    }
+
+    .deal-card {
+      background: #ffffff;
+      border: 1px solid #e3e6ea;
+      border-radius: 10px;
+      padding: 12px;
+      box-shadow: 0 8px 16px rgba(20, 20, 20, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .deal-header {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 8px;
+    }
+
+    .deal-title {
+      font-weight: bold;
+      font-size: 14px;
+    }
+
+    .deal-tag {
+      font-size: 10px;
+      padding: 4px 8px;
+      border-radius: 999px;
+      background: #e9f3ef;
+      color: #1f7a5c;
+      font-weight: bold;
+      text-transform: uppercase;
+    }
+
+    .deal-tag.sell {
+      background: #fde9e7;
+      color: #b53a32;
+    }
+
+    .deal-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 6px;
+    }
+
+    .meta-item {
+      background: #f7f8fa;
+      border: 1px solid #e9ecef;
+      border-radius: 8px;
+      padding: 6px;
+      font-size: 12px;
+    }
+
+    .meta-item span {
+      display: block;
+      color: #6a737d;
+      font-size: 11px;
+      margin-bottom: 3px;
+    }
+
+    .deal-note {
+      font-size: 11px;
+      color: #6a737d;
+    }
+
+    .profit {
+      color: #26a69a;
+      font-weight: bold;
+    }
+
+    .loss {
+      color: #ef5350;
+      font-weight: bold;
+    }
+
+    .export {
+      margin-top: 24px;
+    }
+
+    .export-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      margin-bottom: 12px;
+    }
+
+    .export-output {
+      width: 100%;
+      min-height: 140px;
+      background: #f7f8fa;
+      border: 1px solid #cfd6dd;
+      border-radius: 6px;
+      padding: 10px;
+      box-sizing: border-box;
+      font-family: "Consolas", "Courier New", monospace;
+      font-size: 12px;
+      color: #1f2328;
+      resize: vertical;
+    }
+
     .deals-table th:nth-child(1),
     .deals-table td:nth-child(1) {
       width: 36px;
@@ -329,6 +439,12 @@
       margin: 8px 0 0;
     }
 
+    @media (max-width: 1200px) {
+      .results-grid {
+        grid-template-columns: repeat(2, minmax(220px, 1fr));
+      }
+    }
+
     @media (max-width: 720px) {
       .page {
         margin-top: 20px;
@@ -338,6 +454,10 @@
       .page-header {
         flex-direction: column;
         align-items: flex-start;
+      }
+
+      .results-grid {
+        grid-template-columns: 1fr;
       }
     }
   </style>
@@ -349,7 +469,7 @@
         <h1>Алгоритм QWF80</h1>
       </div>
       <div class="header-actions">
-        <a class="secondary-btn" href="../choice/index.html">Назад к выбору</a>
+        <a class="secondary-btn" href="../choice/index.html">Ручной подбор</a>
         <a class="secondary-btn" href="../index.html">К калькулятору</a>
       </div>
     </header>
@@ -373,6 +493,10 @@
         <div class="field">
           <label for="riskMax">Максимальный риск на сделку, %</label>
           <input id="riskMax" type="number" min="0" step="0.01">
+        </div>
+        <div class="field">
+          <label for="calcDeposit">Депозит для расчета</label>
+          <input id="calcDeposit" type="number" min="0" step="1">
         </div>
         <div class="field">
           <label for="usefulnessShare">Фильтр, %</label>
@@ -459,7 +583,7 @@
 
     <section class="deals card">
       <div class="section-head">
-        <h2>Сделки из калькулятора</h2>
+        <h2>Выбор сделок по алгоритму</h2>
         <span id="dealCount" class="muted"></span>
       </div>
       <p id="noDeals" class="muted">Сохраненных сделок пока нет. Добавьте сделки в калькуляторе.</p>
@@ -490,10 +614,33 @@
       <p class="muted">Параметры сделок сохраняются в браузере.</p>
     </section>
 
+    <section class="card results">
+      <div class="section-head">
+        <h2>Рассчитанные лоты по активным сделкам</h2>
+        <span id="calcResultCount" class="muted"></span>
+      </div>
+      <p id="calcResultsEmpty" class="muted">После запуска алгоритма здесь появятся рассчитанные сделки.</p>
+      <div id="calcResultsGrid" class="results-grid"></div>
+    </section>
+
+    <section class="export card">
+      <h2>Экспорт</h2>
+      <div class="export-actions">
+        <button type="button" class="secondary-btn" id="exportCalcBtn">Экспорт в калькулятор</button>
+        <button type="button" class="secondary-btn" id="exportAlgoBtn">Экспорт для страницы авто-подбора</button>
+        <button type="button" class="secondary-btn" id="exportPublishBtn">Экспорт для публикации</button>
+      </div>
+      <textarea id="exportOutput" class="export-output" readonly placeholder="Здесь появится текст экспорта."></textarea>
+      <p class="muted">Экспортируйте сделки для переноса в калькулятор или повторного авто-подбора.</p>
+      <h2>Импорт</h2>
+      <textarea id="importInput" class="export-output" placeholder="Вставьте экспорт из калькулятора, авто-подбора или ручного подбора."></textarea>
+      <div class="export-actions">
+        <button type="button" class="secondary-btn" id="importAlgoBtn">Импортировать</button>
+      </div>
+    </section>
+
     </main>
 
   <script src="algorithm.js"></script>
 </body>
 </html>
-
-

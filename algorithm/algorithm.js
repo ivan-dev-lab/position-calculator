@@ -5,12 +5,26 @@ const PARAMS_KEY = 'calc_algo_params';
 const DEFAULT_SETTINGS = {
   totalRisk: 2,
   maxRisk: 1,
-  usefulnessShare: 0.8
+  usefulnessShare: 0.8,
+  calcDeposit: null
 };
 
 const INDEX_SYMBOLS = {
   GER40: '^dax',
   SPX500: '^SPX'
+};
+
+const INDEX_DEFS = {
+  GER40: { quote: 'EUR', contractSize: 25 },
+  SPX500: { quote: 'USD', contractSize: 50 }
+};
+
+const CONTRACT_SIZES = {
+  XAUUSD: 100,
+  XAGUSD: 5000,
+  BTCUSDT: 1,
+  ETHUSDT: 1,
+  DEFAULT: 100000
 };
 
 const METAL_PRICE_FIELDS = {
@@ -36,6 +50,7 @@ let metalCache = null;
 let cryptoCache = {};
 let indexCache = {};
 let isPriceLoading = false;
+let lastResults = null;
 
 function getDealId(deal, index) {
   return String(deal.id || `deal_${index}`);
@@ -97,6 +112,34 @@ function parseCryptoPair(pair) {
   return null;
 }
 
+function parseCalcPair(pair) {
+  const normalized = normalizePair(pair);
+  if (!normalized) return null;
+  const compact = normalized.replace('/', '');
+  if (INDEX_DEFS[compact]) {
+    return { base: compact, quote: INDEX_DEFS[compact].quote, compact };
+  }
+  if (normalized.includes('/')) {
+    const [base, quote] = normalized.split('/');
+    if (base && quote) return { base, quote, compact };
+  }
+  if (compact.endsWith('USDT')) {
+    return { base: compact.slice(0, -4), quote: 'USDT', compact };
+  }
+  if (compact.endsWith('USD')) {
+    return { base: compact.slice(0, -3), quote: 'USD', compact };
+  }
+  return null;
+}
+
+function getContractSize(pair) {
+  const parsed = parseCalcPair(pair);
+  if (!parsed) return null;
+  const key = parsed.compact || normalizePair(pair).replace('/', '');
+  if (INDEX_DEFS[key]) return INDEX_DEFS[key].contractSize;
+  return CONTRACT_SIZES[key] || CONTRACT_SIZES.DEFAULT;
+}
+
 function resetPriceCaches() {
   fxRateCache = {};
   metalCache = null;
@@ -119,6 +162,17 @@ async function fetchFxRates(base) {
     console.warn('Не удалось получить FX цену:', err);
     return null;
   }
+}
+
+async function getExchangeRate(from, to) {
+  const base = normalizeStableCurrency(from);
+  const quote = normalizeStableCurrency(to);
+  if (!base || !quote) return null;
+  if (base === quote) return 1;
+  const rates = await fetchFxRates(base);
+  if (!rates || rates[quote] === undefined) return null;
+  const value = parseFloat(rates[quote]);
+  return Number.isFinite(value) ? value : null;
 }
 
 async function fetchFxPrice(base, quote) {
@@ -223,10 +277,13 @@ function normalizeSettings(raw) {
   let usefulnessShare = toNumber(raw.usefulnessShare, DEFAULT_SETTINGS.usefulnessShare);
   if (usefulnessShare > 1) usefulnessShare = usefulnessShare / 100;
   usefulnessShare = clamp(usefulnessShare, 0, 1);
+  let calcDeposit = toNumber(raw.calcDeposit, NaN);
+  if (!Number.isFinite(calcDeposit) || calcDeposit <= 0) calcDeposit = null;
   return {
     totalRisk,
     maxRisk,
-    usefulnessShare
+    usefulnessShare,
+    calcDeposit
   };
 }
 
@@ -309,6 +366,43 @@ function getDefaultDepositValue() {
 function getDefaultDepositCurrency() {
   const deal = currentDeals.find((item) => item && item.depCur);
   return deal ? String(deal.depCur).toUpperCase() : 'USD';
+}
+
+function getDepositOverride() {
+  const input = document.getElementById('calcDeposit');
+  if (!input) return null;
+  const value = parseFloat(input.value);
+  if (!Number.isFinite(value) || value <= 0) return null;
+  return value;
+}
+
+function updateCalcDepositPlaceholder() {
+  const input = document.getElementById('calcDeposit');
+  if (!input) return;
+  if (!currentDeals.length) {
+    input.placeholder = 'например: 1000';
+    return;
+  }
+
+  const baseDep = Number(currentDeals[0].dep);
+  const baseCur = (currentDeals[0].depCur || 'USD').toUpperCase();
+  if (!Number.isFinite(baseDep) || baseDep <= 0) {
+    input.placeholder = 'например: 1000';
+    return;
+  }
+
+  const allSame = currentDeals.every((deal) => {
+    const dep = Number(deal.dep);
+    const cur = (deal.depCur || 'USD').toUpperCase();
+    return dep === baseDep && cur === baseCur;
+  });
+
+  if (!allSame) {
+    input.placeholder = 'разные депозиты';
+    return;
+  }
+
+  input.placeholder = `базовый депозит: ${baseDep.toFixed(2)} ${baseCur}`;
 }
 
 async function updatePrices(force = false) {
@@ -839,6 +933,27 @@ function formatMetric(value, digits) {
   return value.toFixed(digits);
 }
 
+function formatPercent(value) {
+  if (!Number.isFinite(value)) return '-';
+  return `${value.toFixed(2)} %`;
+}
+
+function formatMoney(value, currency) {
+  if (!Number.isFinite(value)) return '-';
+  return `${value.toFixed(2)} ${currency}`;
+}
+
+function formatLots(value) {
+  if (!Number.isFinite(value)) return '-';
+  return value.toFixed(2);
+}
+
+function formatExportValue(value) {
+  if (value === null || value === undefined || value === '') return '-';
+  if (typeof value === 'number' && Number.isNaN(value)) return '-';
+  return String(value);
+}
+
 function findDealById(id) {
   return currentDeals.find((deal, index) => getDealId(deal, index) === id) || null;
 }
@@ -929,6 +1044,8 @@ function renderDeals(deals) {
 
     updatePriceModeUI(row, params.priceMode === 'manual' ? 'manual' : 'auto');
   });
+
+  updateCalcDepositPlaceholder();
 }
 
 function updateSummary(summary) {
@@ -980,14 +1097,374 @@ function updateRows(results) {
   });
 }
 
+function buildCalcItems(results) {
+  const depositOverride = getDepositOverride();
+  return currentDeals
+    .map((deal, index) => {
+      const id = getDealId(deal, index);
+      const result = results.byId[id];
+      if (!result || !result.active || result.risk <= EPSILON) return null;
+
+      const params = dealParams[id] || {};
+      const entry = toNullableNumber(params.entry, toNullableNumber(deal.open));
+      const sl = toNullableNumber(params.sl, toNullableNumber(deal.sl));
+      const tp = toNullableNumber(params.tp, toNullableNumber(deal.tp));
+      const dep = depositOverride !== null
+        ? depositOverride
+        : (Number.isFinite(deal.dep) ? Number(deal.dep) : getDefaultDepositValue());
+      const depCur = deal.depCur ? String(deal.depCur).toUpperCase() : getDefaultDepositCurrency();
+      const pair = normalizePair(deal.pair);
+      const parsed = parseCalcPair(pair);
+
+      return {
+        id,
+        pair,
+        entry,
+        sl,
+        tp,
+        dep,
+        depCur,
+        riskPct: result.risk,
+        quote: parsed ? parsed.quote : null,
+        size: getContractSize(pair)
+      };
+    })
+    .filter(Boolean);
+}
+
+function calculateLotMetrics(item, convRate) {
+  if (!Number.isFinite(item.entry) || !Number.isFinite(item.sl) || !Number.isFinite(item.tp)) {
+    return { error: 'Недостаточно параметров' };
+  }
+  if (!Number.isFinite(item.dep) || item.dep <= 0) {
+    return { error: 'Нет депозита' };
+  }
+  if (!Number.isFinite(item.riskPct) || item.riskPct <= 0) {
+    return { error: 'Риск = 0' };
+  }
+  if (!Number.isFinite(item.size) || item.size <= 0) {
+    return { error: 'Нет контракта' };
+  }
+  if (!Number.isFinite(convRate) || convRate <= 0) {
+    return { error: 'Нет курса валют' };
+  }
+
+  const riskDist = Math.abs(item.entry - item.sl);
+  if (!Number.isFinite(riskDist) || riskDist <= 0) {
+    return { error: 'SL = Entry' };
+  }
+
+  const riskAmount = item.dep * (item.riskPct / 100);
+  const maxLots = riskAmount / (riskDist * item.size * convRate);
+  if (!Number.isFinite(maxLots) || maxLots <= 0) {
+    return { error: 'Лот слишком мал' };
+  }
+  const floored = Math.floor((maxLots + EPSILON) * 100) / 100;
+  if (!Number.isFinite(floored) || floored < 0.01) {
+    return { error: 'Риск меньше 0.01 лота' };
+  }
+  const lots = floored;
+
+  const isBuy = item.tp >= item.entry;
+  const profitQuote = (isBuy ? (item.tp - item.entry) : (item.entry - item.tp)) * lots * item.size;
+  const lossQuote = (isBuy ? (item.entry - item.sl) : (item.sl - item.entry)) * lots * item.size;
+  const profit = profitQuote * convRate;
+  const loss = lossQuote * convRate;
+  const profitDepPct = (profit / item.dep) * 100;
+  const lossDepPct = (loss / item.dep) * 100;
+
+  return {
+    lots,
+    profit,
+    loss,
+    profitDepPct,
+    lossDepPct,
+    isBuy
+  };
+}
+
+async function resolveRatesForItems(items) {
+  const ratePairs = new Map();
+  items.forEach((item) => {
+    const from = normalizeStableCurrency(item.quote);
+    const to = normalizeStableCurrency(item.depCur);
+    if (!from || !to) {
+      item.rateKey = null;
+      return;
+    }
+    const key = `${from}_${to}`;
+    item.rateKey = key;
+    if (!ratePairs.has(key)) {
+      ratePairs.set(key, { from, to });
+    }
+  });
+
+  const rates = {};
+  await Promise.all(
+    Array.from(ratePairs.entries()).map(async ([key, pair]) => {
+      const rate = await getExchangeRate(pair.from, pair.to);
+      rates[key] = rate;
+    })
+  );
+
+  return rates;
+}
+
+let calcRenderToken = 0;
+
+async function renderCalculatedDeals(results) {
+  const grid = document.getElementById('calcResultsGrid');
+  const empty = document.getElementById('calcResultsEmpty');
+  const count = document.getElementById('calcResultCount');
+  if (!grid || !empty || !count) return;
+
+  const items = buildCalcItems(results);
+  if (!items.length) {
+    grid.innerHTML = '';
+    empty.style.display = 'block';
+    count.textContent = '';
+    return;
+  }
+
+  empty.style.display = 'none';
+  count.textContent = `Сделок: ${items.length}`;
+
+  const token = ++calcRenderToken;
+  const rates = await resolveRatesForItems(items);
+
+  if (token !== calcRenderToken) return;
+
+  grid.innerHTML = '';
+  items.forEach((item) => {
+    const rate = item.rateKey ? rates[item.rateKey] : null;
+    const calc = calculateLotMetrics(item, rate);
+    const isBuy = calc.isBuy !== undefined ? calc.isBuy : item.tp >= item.entry;
+
+    const lotsText = calc.error ? '-' : formatLots(calc.lots);
+    const riskText = calc.error
+      ? '-'
+      : `${formatMoney(calc.loss, item.depCur)} · ${formatPercent(calc.lossDepPct)}`;
+    const profitText = calc.error
+      ? '-'
+      : `${formatMoney(calc.profit, item.depCur)} · ${formatPercent(calc.profitDepPct)}`;
+
+    const card = document.createElement('div');
+    card.className = 'deal-card';
+    card.innerHTML = `
+      <div class="deal-header">
+        <div class="deal-title">${item.pair || '-'}</div>
+        <span class="deal-tag${isBuy ? '' : ' sell'}">${isBuy ? 'BUY' : 'SELL'}</span>
+      </div>
+      <div class="deal-meta">
+        <div class="meta-item"><span>Entry</span><strong>${formatPrice(item.entry)}</strong></div>
+        <div class="meta-item"><span>TP</span><strong>${formatPrice(item.tp)}</strong></div>
+        <div class="meta-item"><span>SL</span><strong>${formatPrice(item.sl)}</strong></div>
+        <div class="meta-item"><span>Lots</span><strong>${lotsText}</strong></div>
+        <div class="meta-item"><span>Risk</span><strong class="loss">${riskText}</strong></div>
+        <div class="meta-item"><span>Profit</span><strong class="profit">${profitText}</strong></div>
+      </div>
+      ${calc.error ? `<div class="deal-note">${calc.error}</div>` : ''}
+    `;
+    grid.appendChild(card);
+  });
+}
+
+function pruneParamsForDeals(deals, paramsById) {
+  const allowed = new Set(deals.map((deal, index) => getDealId(deal, index)));
+  const next = {};
+  allowed.forEach((id) => {
+    if (paramsById && paramsById[id]) next[id] = paramsById[id];
+  });
+  return next;
+}
+
+function buildCalculatorExport() {
+  return JSON.stringify(currentDeals, null, 2);
+}
+
+function buildAlgorithmExport() {
+  const currentSettings = readSettingsFromInputs();
+  const payload = {
+    type: 'calc_algo_v1',
+    exportedAt: new Date().toISOString(),
+    settings: currentSettings,
+    params: pruneParamsForDeals(currentDeals, dealParams),
+    deals: currentDeals
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+function getResultsSnapshot() {
+  const currentSettings = readSettingsFromInputs();
+  return runAlgorithm(currentDeals, dealParams, currentSettings, priceByPair);
+}
+
+async function buildPublicationExport(results) {
+  const items = buildCalcItems(results);
+  if (!items.length) return '';
+
+  const lines = [];
+  lines.push('Ближайшая реализация');
+
+  const rates = await resolveRatesForItems(items);
+
+  const dealNumberById = {};
+  const pairCounters = {};
+  const sortedForNumbering = [...items]
+    .map((item) => {
+      const deal = findDealById(item.id);
+      return { item, created: deal ? deal.created || 0 : 0 };
+    })
+    .sort((a, b) => a.created - b.created);
+
+  sortedForNumbering.forEach(({ item }) => {
+    const pair = item.pair || 'Без актива';
+    pairCounters[pair] = (pairCounters[pair] || 0) + 1;
+    dealNumberById[item.id] = pairCounters[pair];
+  });
+
+  const byPair = new Map();
+  sortedForNumbering.forEach(({ item, created }) => {
+    const pair = item.pair || 'Без актива';
+    if (!byPair.has(pair)) byPair.set(pair, []);
+    byPair.get(pair).push({ item, created });
+  });
+
+  for (const [pair, pairItems] of byPair.entries()) {
+    if (lines.length > 1) lines.push('');
+    lines.push(pair);
+    pairItems
+      .sort((a, b) => a.created - b.created)
+      .forEach((entry, idx) => {
+        const item = entry.item;
+        const number = dealNumberById[item.id] || 1;
+        const rate = item.rateKey ? rates[item.rateKey] : null;
+        const calc = calculateLotMetrics(item, rate);
+        const volume = calc.error ? '-' : formatLots(calc.lots);
+        if (idx > 0) lines.push('');
+        lines.push(`#${number}`);
+        lines.push(`Entry: ${formatExportValue(item.entry)}`);
+        lines.push(`TP: ${formatExportValue(item.tp)}`);
+        lines.push(`SL: ${formatExportValue(item.sl)}`);
+        lines.push(`VOL: ${formatExportValue(volume)}`);
+      });
+  }
+
+  return lines.join('\n').trim();
+}
+
+function setExportOutput(text) {
+  const output = document.getElementById('exportOutput');
+  if (!output) return;
+  output.value = text;
+  output.focus();
+  output.select();
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+}
+
+function setupExportControls() {
+  const calcBtn = document.getElementById('exportCalcBtn');
+  const algoBtn = document.getElementById('exportAlgoBtn');
+  const publishBtn = document.getElementById('exportPublishBtn');
+  if (calcBtn) calcBtn.addEventListener('click', () => setExportOutput(buildCalculatorExport()));
+  if (algoBtn) algoBtn.addEventListener('click', () => setExportOutput(buildAlgorithmExport()));
+  if (publishBtn) {
+    publishBtn.addEventListener('click', async () => {
+      const results = lastResults || getResultsSnapshot();
+      const text = await buildPublicationExport(results);
+      setExportOutput(text);
+    });
+  }
+}
+
+function ensureDealIds(deals) {
+  const usedIds = new Set();
+  deals.forEach((deal) => {
+    if (!deal || typeof deal !== 'object') return;
+    let id = deal.id ? String(deal.id) : '';
+    if (!id || usedIds.has(id)) {
+      id = `${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+      deal.id = id;
+    }
+    usedIds.add(id);
+  });
+}
+
+function parseImportPayload(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+
+  let deals = null;
+  let params = null;
+  let settingsPayload = null;
+
+  if (Array.isArray(parsed)) {
+    deals = parsed;
+  } else if (parsed && typeof parsed === 'object') {
+    if (Array.isArray(parsed.deals)) deals = parsed.deals;
+    if (parsed.params && typeof parsed.params === 'object') params = parsed.params;
+    if (parsed.settings && typeof parsed.settings === 'object') settingsPayload = parsed.settings;
+  }
+
+  if (!deals) return null;
+  return { deals, params, settings: settingsPayload };
+}
+
+function setupImportControls() {
+  const importBtn = document.getElementById('importAlgoBtn');
+  const importInput = document.getElementById('importInput');
+  if (!importBtn || !importInput) return;
+
+  importBtn.addEventListener('click', () => {
+    const text = importInput.value.trim();
+    if (!text) return;
+    const payload = parseImportPayload(text);
+    if (!payload) {
+      alert('Не удалось распознать формат импорта.');
+      return;
+    }
+
+    const deals = payload.deals.filter(item => item && typeof item === 'object');
+    ensureDealIds(deals);
+
+    currentDeals = deals;
+    dealParams = payload.params && typeof payload.params === 'object'
+      ? pruneParamsForDeals(currentDeals, payload.params)
+      : {};
+    ensureParamsForDeals(currentDeals);
+
+    saveDeals();
+    saveParams(dealParams);
+
+    if (payload.settings) {
+      settings = normalizeSettings(payload.settings);
+      saveSettings(settings);
+      applySettingsToInputs(settings);
+    }
+
+    renderDeals(currentDeals);
+    updateAddFormDefaults();
+    runAndRender();
+    updatePrices(true);
+  });
+}
+
 function readSettingsFromInputs() {
   const totalInput = document.getElementById('riskTotal');
   const maxInput = document.getElementById('riskMax');
   const shareInput = document.getElementById('usefulnessShare');
+  const depositInput = document.getElementById('calcDeposit');
   return normalizeSettings({
     totalRisk: totalInput ? totalInput.value : '',
     maxRisk: maxInput ? maxInput.value : '',
-    usefulnessShare: shareInput ? shareInput.value : ''
+    usefulnessShare: shareInput ? shareInput.value : '',
+    calcDeposit: depositInput ? depositInput.value : ''
   });
 }
 
@@ -995,24 +1472,31 @@ function applySettingsToInputs(nextSettings) {
   const totalInput = document.getElementById('riskTotal');
   const maxInput = document.getElementById('riskMax');
   const shareInput = document.getElementById('usefulnessShare');
+  const depositInput = document.getElementById('calcDeposit');
   if (totalInput) totalInput.value = nextSettings.totalRisk;
   if (maxInput) maxInput.value = nextSettings.maxRisk;
   if (shareInput) shareInput.value = Math.round(nextSettings.usefulnessShare * 100);
+  if (depositInput) {
+    depositInput.value = Number.isFinite(nextSettings.calcDeposit) ? nextSettings.calcDeposit : '';
+  }
 }
 
 function runAndRender() {
   settings = readSettingsFromInputs();
   saveSettings(settings);
   const results = runAlgorithm(currentDeals, dealParams, settings, priceByPair);
+  lastResults = results;
   updateSummary(results.summary);
   updateRows(results);
+  renderCalculatedDeals(results);
 }
 
 function setupSettingsListeners() {
   const inputs = [
     document.getElementById('riskTotal'),
     document.getElementById('riskMax'),
-    document.getElementById('usefulnessShare')
+    document.getElementById('usefulnessShare'),
+    document.getElementById('calcDeposit')
   ].filter(Boolean);
 
   inputs.forEach((input) => {
@@ -1132,6 +1616,8 @@ setupSettingsListeners();
 setupPriceControls();
 setupAddDealControls();
 setupDealListeners();
+setupExportControls();
+setupImportControls();
 runAndRender();
 updatePrices(true);
 startAutoPriceRefresh();

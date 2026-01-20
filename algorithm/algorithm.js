@@ -38,7 +38,6 @@ const PRICE_REFRESH_MS = 60000;
 const MIN_LOT = 0.01;
 
 const EPSILON = 1e-9;
-const MAX_ITER = 50;
 
 let currentDeals = [];
 let dealParams = {};
@@ -717,25 +716,7 @@ function allocateWithCaps(activeSet, totalRisk, maxRisk) {
     riskById.set(deal.id, Math.min(initial, maxRisk));
   });
 
-  let leftover = totalRisk - sumMapValues(riskById);
-  let iter = 0;
-
-  while (leftover > EPSILON && iter < MAX_ITER) {
-    const available = activeSet.filter((deal) => {
-      return riskById.get(deal.id) < maxRisk - EPSILON;
-    });
-    if (!available.length) break;
-    const availableWeight = available.reduce((sum, deal) => sum + deal.weight, 0);
-    if (availableWeight <= 0) break;
-    available.forEach((deal) => {
-      const current = riskById.get(deal.id) || 0;
-      const add = leftover * (deal.weight / availableWeight);
-      riskById.set(deal.id, Math.min(current + add, maxRisk));
-    });
-    leftover = totalRisk - sumMapValues(riskById);
-    iter += 1;
-  }
-
+  const leftover = totalRisk - sumMapValues(riskById);
   return { riskById, leftover };
 }
 
@@ -839,53 +820,15 @@ function runAlgorithm(deals, paramsById, rawSettings, pricesByPair) {
     if (cumulative >= targetWeight) break;
   }
 
-  const minDeals = Math.ceil(currentSettings.totalRisk / currentSettings.maxRisk);
-  if (activeSet.length < minDeals) {
-    for (const deal of sorted) {
-      if (activeIds.has(deal.id)) continue;
-      activeSet.push(deal);
-      activeIds.add(deal.id);
-      reasonById[deal.id] = 'Добавлена для лимита';
-      if (activeSet.length >= minDeals) break;
-    }
-  }
+  const allocation = allocateWithCaps(activeSet, currentSettings.totalRisk, currentSettings.maxRisk);
+  const riskById = allocation.riskById;
 
-  let riskById = new Map();
-  let leftover = currentSettings.totalRisk;
-  let nextIndex = 0;
-  let expansions = 0;
-
-  while (expansions < MAX_ITER) {
-    const allocation = allocateWithCaps(activeSet, currentSettings.totalRisk, currentSettings.maxRisk);
-    riskById = allocation.riskById;
-    leftover = allocation.leftover;
-    if (leftover <= EPSILON) break;
-
-    let added = false;
-    for (; nextIndex < sorted.length; nextIndex++) {
-      const candidate = sorted[nextIndex];
-      if (!activeIds.has(candidate.id)) {
-        activeSet.push(candidate);
-        activeIds.add(candidate.id);
-        reasonById[candidate.id] = 'Добавлена из-за капов';
-        added = true;
-        nextIndex += 1;
-        break;
-      }
-    }
-
-    if (!added) break;
-    expansions += 1;
-  }
 
   summary.usedRisk = sumMapValues(riskById);
   summary.leftover = Math.max(currentSettings.totalRisk - summary.usedRisk, 0);
   summary.activeWeight = activeSet.reduce((sum, deal) => sum + deal.weight, 0);
   summary.activeCount = activeSet.filter((deal) => (riskById.get(deal.id) || 0) > EPSILON).length;
 
-  if (summary.leftover > EPSILON && activeSet.length === sorted.length) {
-    summary.note = 'Бюджет риска заполнить полностью не удалось из-за лимитов.';
-  }
 
   candidates.forEach((deal) => {
     const risk = riskById.get(deal.id) || 0;

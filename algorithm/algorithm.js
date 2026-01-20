@@ -1,5 +1,6 @@
 const DEALS_KEY = 'calc_savedDeals';
 const SETTINGS_KEY = 'calc_algo_settings';
+const ACCOUNTS_KEY = 'calc_algo_accounts_v1';
 const PARAMS_KEY = 'calc_algo_params';
 
 const DEFAULT_SETTINGS = {
@@ -42,6 +43,8 @@ const EPSILON = 1e-9;
 let currentDeals = [];
 let dealParams = {};
 let settings = { ...DEFAULT_SETTINGS };
+let accounts = [];
+let activeAccountId = null;
 let priceByPair = {};
 let lastPriceUpdate = null;
 let fxRateCache = {};
@@ -315,7 +318,382 @@ function loadSettings() {
 }
 
 function saveSettings(nextSettings) {
+  if (accounts.length) {
+    const account = getActiveAccount();
+    if (account) {
+      account.settings = normalizeSettings(nextSettings);
+      settings = account.settings;
+      saveAccounts();
+      return;
+    }
+  }
   localStorage.setItem(SETTINGS_KEY, JSON.stringify(nextSettings));
+}
+
+function generateAccountId() {
+  return `account_${Date.now()}_${Math.floor(Math.random() * 100000)}`;
+}
+
+function normalizeAccountName(name, index) {
+  const trimmed = String(name || '').trim();
+  if (trimmed) return trimmed;
+  return `Аккаунт ${index + 1}`;
+}
+
+function normalizeAccount(raw, index) {
+  const base = raw && typeof raw === 'object' ? raw : {};
+  const id = base.id ? String(base.id) : generateAccountId();
+  const name = normalizeAccountName(base.name, index);
+  const settingsRaw = base.settings && typeof base.settings === 'object' ? base.settings : base;
+  const normalizedSettings = normalizeSettings(settingsRaw);
+  return {
+    id,
+    name,
+    settings: normalizedSettings
+  };
+}
+
+function loadAccounts() {
+  try {
+    const raw = localStorage.getItem(ACCOUNTS_KEY);
+    if (raw) {
+      const parsed = JSON.parse(raw);
+      if (parsed && Array.isArray(parsed.accounts)) {
+        const normalized = parsed.accounts.map((acc, index) => normalizeAccount(acc, index));
+        const activeId = parsed.activeId ? String(parsed.activeId) : null;
+        return { accounts: normalized, activeId };
+      }
+    }
+  } catch (err) {
+    console.warn('Не удалось загрузить настройки аккаунтов:', err);
+  }
+
+  const legacy = loadSettings();
+  const account = normalizeAccount({ name: 'Аккаунт 1', settings: legacy }, 0);
+  return { accounts: [account], activeId: account.id };
+}
+
+function saveAccounts() {
+  const payload = {
+    activeId: activeAccountId,
+    accounts
+  };
+  localStorage.setItem(ACCOUNTS_KEY, JSON.stringify(payload));
+}
+
+function ensureActiveAccount() {
+  if (!accounts.length) {
+    const fallback = normalizeAccount({ name: 'Аккаунт 1', settings: DEFAULT_SETTINGS }, 0);
+    accounts = [fallback];
+  }
+  if (!activeAccountId || !accounts.find((acc) => acc.id === activeAccountId)) {
+    activeAccountId = accounts[0].id;
+  }
+  return getActiveAccount();
+}
+
+function getActiveAccount() {
+  return accounts.find((acc) => acc.id === activeAccountId) || accounts[0] || null;
+}
+
+function setActiveAccountById(id) {
+  if (!id) return;
+  const next = accounts.find((acc) => acc.id === id);
+  if (!next) return;
+  activeAccountId = next.id;
+  settings = { ...next.settings };
+  applySettingsToInputs(settings);
+  saveAccounts();
+  renderAccountSwitcher();
+  runAndRender();
+}
+
+function setActiveAccountByIndex(index) {
+  if (index < 0 || index >= accounts.length) return;
+  setActiveAccountById(accounts[index].id);
+}
+
+function updateActiveAccountSettings(nextSettings) {
+  const account = getActiveAccount();
+  if (!account) return;
+  account.settings = normalizeSettings(nextSettings);
+  settings = account.settings;
+  saveAccounts();
+  renderAccountSwitcher();
+}
+
+function renderAccountSwitcher() {
+  const track = document.getElementById('accountTrack');
+  if (!track) return;
+  track.innerHTML = '';
+
+  accounts.forEach((account) => {
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.className = 'account-chip';
+    if (account.id === activeAccountId) btn.classList.add('active');
+    btn.dataset.id = account.id;
+    btn.textContent = account.name;
+    track.appendChild(btn);
+  });
+
+  updateAccountNavState();
+  updateAccountActionState();
+}
+
+function updateAccountNavState() {
+  const prevBtn = document.getElementById('accountPrevBtn');
+  const nextBtn = document.getElementById('accountNextBtn');
+  if (!prevBtn || !nextBtn) return;
+  if (accounts.length <= 1) {
+    prevBtn.disabled = true;
+    nextBtn.disabled = true;
+    return;
+  }
+  const index = accounts.findIndex((acc) => acc.id === activeAccountId);
+  prevBtn.disabled = index <= 0;
+  nextBtn.disabled = index < 0 || index >= accounts.length - 1;
+}
+
+function updateAccountActionState() {
+  const deleteBtn = document.getElementById('deleteAccountBtn');
+  if (!deleteBtn) return;
+  deleteBtn.disabled = accounts.length <= 1;
+}
+
+function addAccount() {
+  const baseSettings = getActiveAccount() ? getActiveAccount().settings : DEFAULT_SETTINGS;
+  const nextAccount = normalizeAccount({ settings: baseSettings }, accounts.length);
+  accounts.push(nextAccount);
+  activeAccountId = nextAccount.id;
+  saveAccounts();
+  applySettingsToInputs(nextAccount.settings);
+  renderAccountSwitcher();
+  runAndRender();
+}
+
+function renameActiveAccount() {
+  const active = getActiveAccount();
+  if (!active) return;
+  const nextName = prompt('Новое имя аккаунта:', active.name || '');
+  if (nextName === null) return;
+  const trimmed = String(nextName).trim();
+  if (!trimmed) return;
+  active.name = trimmed;
+  saveAccounts();
+  renderAccountSwitcher();
+}
+
+function deleteActiveAccount() {
+  if (accounts.length <= 1) {
+    alert('Нельзя удалить единственный аккаунт.');
+    return;
+  }
+  const active = getActiveAccount();
+  const name = active ? active.name : 'этот аккаунт';
+  if (!confirm(`Удалить аккаунт "${name}"?`)) return;
+
+  const index = accounts.findIndex((acc) => acc.id === activeAccountId);
+  accounts = accounts.filter((acc) => acc.id !== activeAccountId);
+  if (!accounts.length) {
+    const fallback = normalizeAccount({ name: 'Аккаунт 1', settings: DEFAULT_SETTINGS }, 0);
+    accounts = [fallback];
+    activeAccountId = fallback.id;
+  } else {
+    const nextIndex = Math.min(Math.max(index, 0), accounts.length - 1);
+    activeAccountId = accounts[nextIndex].id;
+  }
+
+  const nextActive = getActiveAccount();
+  if (nextActive) {
+    settings = { ...nextActive.settings };
+    applySettingsToInputs(settings);
+  }
+  saveAccounts();
+  renderAccountSwitcher();
+  runAndRender();
+}
+
+function setupAccountSwitcher() {
+  const track = document.getElementById('accountTrack');
+  const addBtn = document.getElementById('addAccountBtn');
+  const renameBtn = document.getElementById('renameAccountBtn');
+  const deleteBtn = document.getElementById('deleteAccountBtn');
+  const switcher = document.getElementById('accountSwitcher');
+
+  if (track) {
+    track.addEventListener('click', (event) => {
+      const btn = event.target.closest('.account-chip');
+      if (!btn) return;
+      const id = btn.dataset.id;
+      if (id) setActiveAccountById(id);
+    });
+  }
+
+  if (addBtn) {
+    addBtn.addEventListener('click', () => {
+      addAccount();
+    });
+  }
+
+  if (renameBtn) {
+    renameBtn.addEventListener('click', () => {
+      renameActiveAccount();
+    });
+  }
+
+  if (deleteBtn) {
+    deleteBtn.addEventListener('click', () => {
+      deleteActiveAccount();
+    });
+  }
+
+  if (switcher) {
+    let startX = null;
+    let startY = null;
+    const threshold = 40;
+
+    const onStart = (event) => {
+      const point = event.touches ? event.touches[0] : event;
+      startX = point.clientX;
+      startY = point.clientY;
+    };
+
+    const onEnd = (event) => {
+      if (startX === null || startY === null) return;
+      const point = event.changedTouches ? event.changedTouches[0] : event;
+      const dx = point.clientX - startX;
+      const dy = point.clientY - startY;
+      startX = null;
+      startY = null;
+      if (Math.abs(dx) < threshold || Math.abs(dx) < Math.abs(dy)) return;
+      if (dx < 0) {
+        const index = accounts.findIndex((acc) => acc.id === activeAccountId);
+        setActiveAccountByIndex(index + 1);
+      } else {
+        const index = accounts.findIndex((acc) => acc.id === activeAccountId);
+        setActiveAccountByIndex(index - 1);
+      }
+    };
+
+    switcher.addEventListener('touchstart', onStart, { passive: true });
+    switcher.addEventListener('touchend', onEnd);
+  }
+}
+
+function setAccountsOutput(text) {
+  const output = document.getElementById('accountsExportOutput');
+  if (!output) return;
+  output.value = text;
+  output.focus();
+  output.select();
+  if (navigator.clipboard && window.isSecureContext) {
+    navigator.clipboard.writeText(text).catch(() => {});
+  }
+}
+
+function buildAccountsExport() {
+  const payload = {
+    type: 'calc_algo_accounts_v1',
+    exportedAt: new Date().toISOString(),
+    activeId: activeAccountId,
+    accounts: accounts.map((account) => ({
+      id: account.id,
+      name: account.name,
+      settings: account.settings
+    }))
+  };
+  return JSON.stringify(payload, null, 2);
+}
+
+function mergeAccounts(existing, incoming) {
+  const usedIds = new Set(existing.map((acc) => acc.id));
+  const merged = [...existing];
+  incoming.forEach((acc, index) => {
+    let next = { ...acc };
+    if (!next.id || usedIds.has(next.id)) {
+      next.id = generateAccountId();
+    }
+    next.name = normalizeAccountName(next.name, merged.length + index);
+    next.settings = normalizeSettings(next.settings || {});
+    usedIds.add(next.id);
+    merged.push(next);
+  });
+  return merged;
+}
+
+function parseAccountsImport(text) {
+  let parsed;
+  try {
+    parsed = JSON.parse(text);
+  } catch {
+    return null;
+  }
+
+  if (parsed && Array.isArray(parsed.accounts)) {
+    const normalized = parsed.accounts.map((acc, index) => normalizeAccount(acc, index));
+    const activeId = parsed.activeId ? String(parsed.activeId) : null;
+    return { accounts: normalized, activeId };
+  }
+
+  if (parsed && typeof parsed === 'object') {
+    const account = normalizeAccount({ settings: parsed }, 0);
+    return { accounts: [account], activeId: account.id };
+  }
+
+  return null;
+}
+
+function setupAccountIO() {
+  const exportBtn = document.getElementById('exportAccountsBtn');
+  const importBtn = document.getElementById('importAccountsBtn');
+  const importInput = document.getElementById('accountsImportInput');
+  const toggleBtn = document.getElementById('toggleAccountIOBtn');
+  const ioBlock = document.getElementById('accountIO');
+
+  if (toggleBtn && ioBlock) {
+    toggleBtn.addEventListener('click', () => {
+      const isOpen = ioBlock.classList.toggle('is-open');
+      toggleBtn.textContent = isOpen ? 'Скрыть настройки' : 'Импорт/экспорт настроек';
+    });
+  }
+
+  if (exportBtn) {
+    exportBtn.addEventListener('click', () => {
+      setAccountsOutput(buildAccountsExport());
+    });
+  }
+
+  if (importBtn && importInput) {
+    importBtn.addEventListener('click', () => {
+      const text = importInput.value.trim();
+      if (!text) return;
+      const payload = parseAccountsImport(text);
+      if (!payload || !payload.accounts.length) {
+        alert('Не удалось распознать настройки аккаунтов.');
+        return;
+      }
+      const overwrite = confirm('Перезаписать все аккаунты новыми? Нажмите ОК для перезаписи или Отмена для добавления.');
+      if (overwrite) {
+        accounts = payload.accounts;
+        activeAccountId = payload.activeId && accounts.find((acc) => acc.id === payload.activeId)
+          ? payload.activeId
+          : (accounts[0] ? accounts[0].id : null);
+      } else {
+        accounts = mergeAccounts(accounts, payload.accounts);
+      }
+      ensureActiveAccount();
+      const active = getActiveAccount();
+      if (active) {
+        settings = { ...active.settings };
+        applySettingsToInputs(settings);
+      }
+      saveAccounts();
+      renderAccountSwitcher();
+      runAndRender();
+      importInput.value = '';
+    });
+  }
 }
 
 function loadParams() {
@@ -1404,9 +1782,9 @@ function setupImportControls() {
     saveParams(dealParams);
 
     if (payload.settings) {
-      settings = normalizeSettings(payload.settings);
-      saveSettings(settings);
-      applySettingsToInputs(settings);
+      const nextSettings = normalizeSettings(payload.settings);
+      updateActiveAccountSettings(nextSettings);
+      applySettingsToInputs(nextSettings);
     }
 
     renderDeals(currentDeals);
@@ -1443,9 +1821,9 @@ function applySettingsToInputs(nextSettings) {
 }
 
 function runAndRender() {
-  settings = readSettingsFromInputs();
-  saveSettings(settings);
-  const results = runAlgorithm(currentDeals, dealParams, settings, priceByPair);
+  const nextSettings = readSettingsFromInputs();
+  updateActiveAccountSettings(nextSettings);
+  const results = runAlgorithm(currentDeals, dealParams, nextSettings, priceByPair);
   lastResults = results;
   updateSummary(results.summary);
   updateRows(results);
@@ -1569,10 +1947,19 @@ function setupDealListeners() {
 
 currentDeals = loadDeals();
 dealParams = loadParams();
-settings = loadSettings();
-ensureParamsForDeals(currentDeals);
+const accountsPayload = loadAccounts();
+accounts = accountsPayload.accounts;
+activeAccountId = accountsPayload.activeId;
+ensureActiveAccount();
+saveAccounts();
+const activeAccount = getActiveAccount();
+settings = activeAccount ? activeAccount.settings : { ...DEFAULT_SETTINGS };
 applySettingsToInputs(settings);
+ensureParamsForDeals(currentDeals);
+renderAccountSwitcher();
 renderDeals(currentDeals);
+setupAccountSwitcher();
+setupAccountIO();
 setupSettingsListeners();
 setupPriceControls();
 setupAddDealControls();

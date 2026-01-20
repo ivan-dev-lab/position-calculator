@@ -1,4 +1,4 @@
-<!DOCTYPE html>
+﻿<!DOCTYPE html>
 <html lang="ru">
 <head>
   <meta charset="UTF-8">
@@ -87,6 +87,56 @@
       font-weight: bold;
       font-size: 14px;
       cursor: pointer;
+    }
+
+    .account-switcher {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 6px 0 12px;
+    }
+
+    .account-track {
+      display: flex;
+      gap: 8px;
+      overflow: hidden;
+      flex: 1;
+    }
+
+    .account-chip {
+      border: 1px solid #cfd6dd;
+      background: #f7f8fa;
+      color: #1f2328;
+      border-radius: 999px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: bold;
+      cursor: pointer;
+      white-space: nowrap;
+    }
+
+    .account-chip.active {
+      background: #26a69a;
+      border-color: #1d8d83;
+      color: #ffffff;
+    }
+
+    .account-nav {
+      padding: 6px 10px;
+      min-width: 32px;
+    }
+
+    .account-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-bottom: 10px;
+    }
+
+    .account-hint {
+      margin: 0 0 12px;
+      font-size: 12px;
+      color: #7a838c;
     }
 
     .settings-grid {
@@ -372,6 +422,18 @@
       resize: vertical;
     }
 
+    .account-output {
+      min-height: 110px;
+    }
+
+    .account-io {
+      display: none;
+    }
+
+    .account-io.is-open {
+      display: block;
+    }
+
     .deals-table th:nth-child(1),
     .deals-table td:nth-child(1) {
       width: 36px;
@@ -485,6 +547,16 @@
         </div>
       </div>
       <p id="priceStatus" class="note muted"></p>
+      <div class="account-switcher" id="accountSwitcher">
+        <div class="account-track" id="accountTrack"></div>
+      </div>
+      <p class="account-hint">Свайпните влево/вправо, чтобы переключить аккаунт.</p>
+      <div class="account-actions">
+        <button class="secondary-btn" id="addAccountBtn" type="button">+ Аккаунт</button>
+        <button class="secondary-btn" id="renameAccountBtn" type="button">Переименовать</button>
+        <button class="secondary-btn" id="deleteAccountBtn" type="button">Удалить аккаунт</button>
+        <button class="secondary-btn" id="toggleAccountIOBtn" type="button">Импорт/экспорт настроек</button>
+      </div>
       <div class="settings-grid">
         <div class="field">
           <label for="riskTotal">Суммарный допустимый риск, %</label>
@@ -522,6 +594,14 @@
         </div>
       </div>
       <p id="summaryNote" class="note muted"></p>
+      <div class="account-io" id="accountIO">
+        <div class="export-actions">
+          <button type="button" class="secondary-btn" id="exportAccountsBtn">Экспорт настроек аккаунтов</button>
+          <button type="button" class="secondary-btn" id="importAccountsBtn">Импорт настроек аккаунтов</button>
+        </div>
+        <textarea id="accountsExportOutput" class="export-output account-output" readonly placeholder="Экспорт настроек аккаунтов."></textarea>
+        <textarea id="accountsImportInput" class="export-output account-output" placeholder="Вставьте экспорт настроек аккаунтов."></textarea>
+      </div>
       <div class="section-divider"></div>
       <div class="section-head">
         <div>
@@ -644,3 +724,5 @@
   <script src="algorithm.js"></script>
 </body>
 </html>
+
+

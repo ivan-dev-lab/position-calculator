@@ -854,7 +854,7 @@ function updateAddFormDefaults() {
   }
 }
 
-function addDealFromForm() {
+async function addDealFromForm() {
   const pairSelect = document.getElementById('addPair');
   const entryInput = document.getElementById('addEntry');
   const slInput = document.getElementById('addSl');
@@ -883,34 +883,66 @@ function addDealFromForm() {
   }
 
   const atr = toNullableNumber(atrInput ? atrInput.value : null);
-  const deposit = getDefaultDepositValue();
+  const currentSettings = readSettingsFromInputs();
+  const depositOverride = getDepositOverride();
+  const deposit = depositOverride !== null
+    ? depositOverride
+    : (Number.isFinite(currentSettings.calcDeposit) ? currentSettings.calcDeposit : getDefaultDepositValue());
   const depCur = getDefaultDepositCurrency();
-  const direction = tp >= entry ? 'BUY' : 'SELL';
+  const riskPct = toNumber(currentSettings.maxRisk, 0);
+  const parsed = parseCalcPair(pair);
+  const quote = parsed ? parsed.quote : null;
+  const size = getContractSize(pair);
+
+  if (!Number.isFinite(riskPct) || riskPct <= 0) {
+    alert('Укажите максимальный риск на сделку, %.');
+    return;
+  }
 
   const id = `${Date.now()}_${Math.floor(Math.random() * 1000)}`;
-  const created = Date.now();
+  let convRate = 1;
+  if (quote && depCur && normalizeStableCurrency(quote) !== normalizeStableCurrency(depCur)) {
+    try {
+      convRate = await getExchangeRate(quote, depCur);
+    } catch {
+      alert('Не удалось получить курс для расчета объема.');
+      return;
+    }
+  }
 
-  const newDeal = {
-    id,
-    pair,
+  if (!Number.isFinite(convRate) || convRate <= 0) {
+    alert('Нет курса для расчета объема.');
+    return;
+  }
+
+  const calcItem = {
+    entry,
+    sl,
+    tp,
     dep: deposit,
     depCur,
-    open: entry,
-    tp,
-    sl,
-    lots: MIN_LOT,
-    leverage: 1,
-    margin: 0,
-    profit: 0,
-    loss: 0,
-    profitDepPct: 0,
-    lossDepPct: 0,
-    profitPosPct: 0,
-    lossPosPct: 0,
-    direction,
-    created,
-    comment: 'добавлено без ручного расчета'
+    riskPct,
+    quote,
+    size
   };
+
+  const calc = calculateLotMetrics(calcItem, convRate);
+  if (calc.error) {
+    alert(`Не удалось рассчитать объем: ${calc.error}`);
+    return;
+  }
+
+  const exportItem = {
+    id,
+    pair,
+    entry,
+    sl,
+    tp,
+    dep: deposit,
+    depCur,
+    size
+  };
+  const newDeal = buildExportDeal(exportItem, calc, convRate);
 
   currentDeals.push(newDeal);
   saveDeals();
@@ -1519,6 +1551,45 @@ function calculateLotMetrics(item, convRate) {
   };
 }
 
+function buildExportDeal(item, calc, convRate) {
+  const deal = findDealById(item.id);
+  const leverage = 100;
+  const isBuy = calc.isBuy !== undefined ? calc.isBuy : item.tp >= item.entry;
+  const profitQuote = (isBuy ? (item.tp - item.entry) : (item.entry - item.tp)) * calc.lots * item.size;
+  const lossQuote = (isBuy ? (item.entry - item.sl) : (item.sl - item.entry)) * calc.lots * item.size;
+  const profit = profitQuote * convRate;
+  const loss = lossQuote * convRate;
+  const posCost = item.entry * calc.lots * item.size;
+  const profitPosPct = posCost ? (profitQuote / posCost) * 100 : 0;
+  const lossPosPct = posCost ? (lossQuote / posCost) * 100 : 0;
+  const profitDepPct = item.dep ? (profit / item.dep) * 100 : 0;
+  const lossDepPct = item.dep ? (loss / item.dep) * 100 : 0;
+  const marginQuote = (calc.lots * item.size * item.entry) / leverage;
+  const margin = marginQuote * convRate;
+
+  return {
+    id: item.id,
+    pair: item.pair,
+    dep: item.dep,
+    depCur: item.depCur,
+    open: item.entry,
+    tp: item.tp,
+    sl: item.sl,
+    lots: calc.lots,
+    leverage,
+    margin: Math.abs(margin),
+    profit: Math.abs(profit),
+    loss: Math.abs(loss),
+    profitDepPct: Math.abs(profitDepPct),
+    lossDepPct: Math.abs(lossDepPct),
+    profitPosPct: Math.abs(profitPosPct),
+    lossPosPct: Math.abs(lossPosPct),
+    direction: isBuy ? 'BUY' : 'SELL',
+    created: deal && deal.created ? deal.created : Date.now(),
+    comment: deal && deal.comment ? deal.comment : ''
+  };
+}
+
 async function resolveRatesForItems(items) {
   const ratePairs = new Map();
   items.forEach((item) => {
@@ -1614,8 +1685,21 @@ function pruneParamsForDeals(deals, paramsById) {
   return next;
 }
 
-function buildCalculatorExport() {
-  return JSON.stringify(currentDeals, null, 2);
+async function buildCalculatorExport() {
+  const results = lastResults || getResultsSnapshot();
+  const items = buildCalcItems(results);
+  if (!items.length) return JSON.stringify([], null, 2);
+
+  const rates = await resolveRatesForItems(items);
+  const exported = [];
+  items.forEach((item) => {
+    const rate = item.rateKey ? rates[item.rateKey] : null;
+    const calc = calculateLotMetrics(item, rate);
+    if (calc.error || !Number.isFinite(rate) || rate <= 0) return;
+    exported.push(buildExportDeal(item, calc, rate));
+  });
+
+  return JSON.stringify(exported, null, 2);
 }
 
 function buildAlgorithmExport() {
@@ -1707,7 +1791,12 @@ function setupExportControls() {
   const calcBtn = document.getElementById('exportCalcBtn');
   const algoBtn = document.getElementById('exportAlgoBtn');
   const publishBtn = document.getElementById('exportPublishBtn');
-  if (calcBtn) calcBtn.addEventListener('click', () => setExportOutput(buildCalculatorExport()));
+  if (calcBtn) {
+    calcBtn.addEventListener('click', async () => {
+      const text = await buildCalculatorExport();
+      setExportOutput(text);
+    });
+  }
   if (algoBtn) algoBtn.addEventListener('click', () => setExportOutput(buildAlgorithmExport()));
   if (publishBtn) {
     publishBtn.addEventListener('click', async () => {

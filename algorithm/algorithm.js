@@ -2171,10 +2171,22 @@ function setupImportControls() {
     const deals = payload.deals.filter(item => item && typeof item === 'object');
     ensureDealIds(deals);
 
-    currentDeals = deals;
-    dealParams = payload.params && typeof payload.params === 'object'
-      ? pruneParamsForDeals(currentDeals, payload.params)
-      : {};
+    const overwrite = confirm('Перезаписать старые сделки? ОК — перезаписать, Отмена — добавить к старым.');
+
+    if (overwrite) {
+      currentDeals = deals;
+      dealParams = payload.params && typeof payload.params === 'object'
+        ? pruneParamsForDeals(currentDeals, payload.params)
+        : {};
+    } else {
+      currentDeals = currentDeals.concat(deals);
+      if (payload.params && typeof payload.params === 'object') {
+        const mergedParams = { ...dealParams, ...payload.params };
+        dealParams = pruneParamsForDeals(currentDeals, mergedParams);
+      } else {
+        dealParams = pruneParamsForDeals(currentDeals, dealParams);
+      }
+    }
     ensureParamsForDeals(currentDeals);
 
     saveDeals();

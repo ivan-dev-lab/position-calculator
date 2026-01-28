@@ -387,6 +387,89 @@
       color: #6a737d;
     }
 
+    .deal-dynamic {
+      border-top: 1px solid #e2e6ea;
+      padding-top: 10px;
+      display: none;
+      flex-direction: column;
+      gap: 10px;
+    }
+
+    .deal-dynamic.is-open {
+      display: flex;
+    }
+
+    .deal-dynamic label {
+      font-size: 12px;
+      font-weight: bold;
+      color: #5d6670;
+      text-transform: uppercase;
+      letter-spacing: 0.4px;
+      margin-bottom: 4px;
+      display: block;
+    }
+
+    .deal-dynamic input {
+      width: 100%;
+      background: #ffffff;
+      border: 1px solid #cfd6dd;
+      border-radius: 6px;
+      padding: 8px 10px;
+      box-sizing: border-box;
+      font-family: inherit;
+      font-size: 13px;
+      color: #1f2328;
+    }
+
+    .deal-dynamic .divider {
+      border-top: 1px solid #e2e6ea;
+      margin: 2px 0;
+    }
+
+    .deal-dynamic .result-line {
+      font-size: 12px;
+      color: #1f2328;
+    }
+
+    .deal-dynamic .result-line + .result-line {
+      margin-top: 2px;
+    }
+
+    .deal-dynamic [data-field="dyn-threshold-price"] + [data-field="dyn-threshold-volume"] {
+      margin-top: 1px;
+    }
+
+    .deal-dynamic [data-field="dyn-min-threshold-price"] + [data-field="dyn-min-threshold-volume"] {
+      margin-top: 1px;
+    }
+
+    .deal-dynamic [data-field="dyn-threshold-list"] {
+      white-space: pre-line;
+    }
+
+    .deal-dynamic .threshold-block + .threshold-block {
+      margin-top: 12px;
+    }
+
+    .deal-dynamic .threshold-block {
+      font-size: 13px;
+      color: #1f2328;
+    }
+
+    .deal-dynamic .threshold-price {
+      font-size: 14px;
+      font-weight: normal;
+    }
+
+    .deal-dynamic .threshold-volume {
+      font-size: 14px;
+      font-weight: normal;
+    }
+
+    .deal-dynamic .threshold-block.is-best {
+      color: #1f7a5c;
+    }
+
     .profit {
       color: #26a69a;
       font-weight: bold;

@@ -1316,6 +1316,54 @@ function formatLots(value) {
   return value.toFixed(2);
 }
 
+function formatPriceFixed(value, precision) {
+  if (!Number.isFinite(value)) return '-';
+  if (!Number.isFinite(precision)) return formatPrice(value);
+  return value.toFixed(precision);
+}
+
+function roundPriceValue(value, digits = null) {
+  if (!Number.isFinite(value)) return value;
+  let safeDigits = digits;
+  if (!Number.isFinite(safeDigits)) {
+    safeDigits = 6;
+    if (value >= 1000) safeDigits = 2;
+    else if (value >= 100) safeDigits = 2;
+    else if (value >= 1) safeDigits = 4;
+  }
+  return parseFloat(value.toFixed(safeDigits));
+}
+
+function getDecimalPlaces(raw) {
+  if (!raw && raw !== 0) return null;
+  const text = String(raw).trim();
+  const match = text.match(/[.,](\d+)/);
+  if (!match) return 0;
+  return match[1].length;
+}
+
+function calculateRR(entry, sl, tp) {
+  if (!Number.isFinite(entry) || !Number.isFinite(sl) || !Number.isFinite(tp)) return null;
+  const riskDist = Math.abs(entry - sl);
+  const rewardDist = Math.abs(tp - entry);
+  if (!Number.isFinite(riskDist) || !Number.isFinite(rewardDist) || riskDist <= 0) return null;
+  return rewardDist / riskDist;
+}
+
+function calculateRRAtPrice(price, sl, tp) {
+  if (!Number.isFinite(price) || !Number.isFinite(sl) || !Number.isFinite(tp)) return null;
+  const riskDist = Math.abs(price - sl);
+  const rewardDist = Math.abs(tp - price);
+  if (!Number.isFinite(riskDist) || !Number.isFinite(rewardDist) || riskDist <= 0) return null;
+  return rewardDist / riskDist;
+}
+
+function calculateRRThresholdPrice(targetRR, sl, tp) {
+  if (!Number.isFinite(targetRR) || targetRR <= 0) return null;
+  if (!Number.isFinite(sl) || !Number.isFinite(tp) || sl === tp) return null;
+  return (tp + targetRR * sl) / (targetRR + 1);
+}
+
 function formatExportValue(value) {
   if (value === null || value === undefined || value === '') return '-';
   if (typeof value === 'number' && Number.isNaN(value)) return '-';
@@ -1657,22 +1705,284 @@ async function renderCalculatedDeals(results) {
 
     const card = document.createElement('div');
     card.className = 'deal-card';
+    const initialLotsText = calc.error ? '-' : formatLots(calc.lots);
+    const initialRiskText = calc.error
+      ? '-'
+      : `${formatMoney(calc.loss, item.depCur)} | ${formatPercent(calc.lossDepPct)}`;
+    const initialProfitText = calc.error
+      ? '-'
+      : `${formatMoney(calc.profit, item.depCur)} | ${formatPercent(calc.profitDepPct)}`;
     card.innerHTML = `
       <div class="deal-header">
         <div class="deal-title">${item.pair || '-'}</div>
         <span class="deal-tag${isBuy ? '' : ' sell'}">${isBuy ? 'BUY' : 'SELL'}</span>
       </div>
       <div class="deal-meta">
-        <div class="meta-item"><span>Entry</span><strong>${formatPrice(item.entry)}</strong></div>
+        <div class="meta-item"><span>Entry</span><strong data-field="card-entry">${formatPrice(item.entry)}</strong></div>
         <div class="meta-item"><span>TP</span><strong>${formatPrice(item.tp)}</strong></div>
         <div class="meta-item"><span>SL</span><strong>${formatPrice(item.sl)}</strong></div>
-        <div class="meta-item"><span>Lots</span><strong>${lotsText}</strong></div>
-        <div class="meta-item"><span>Risk</span><strong class="loss">${riskText}</strong></div>
-        <div class="meta-item"><span>Profit</span><strong class="profit">${profitText}</strong></div>
+        <div class="meta-item"><span>Lots</span><strong data-field="card-lots">${initialLotsText}</strong></div>
+        <div class="meta-item"><span>Risk</span><strong class="loss" data-field="card-risk">${initialRiskText}</strong></div>
+        <div class="meta-item"><span>Profit</span><strong class="profit" data-field="card-profit">${initialProfitText}</strong></div>
       </div>
       ${calc.error ? `<div class="deal-note">${calc.error}</div>` : ''}
+      <button type="button" class="primary-btn" data-action="toggle-dynamic" style="width:100%;">Динамический расчёт объёма</button>
+      <div class="deal-dynamic" data-role="dynamic">
+        <div>
+          <label>Текущая цена</label>
+          <input type="number" step="0.00001" min="0" data-field="dyn-price" placeholder="Введите текущую цену">
+        </div>
+        <div>
+          <label>% изменения RR (порог значимости)</label>
+          <input type="number" step="1" min="1" max="99" value="20" data-field="dyn-threshold">
+        </div>
+        <div class="divider"></div>
+      <div class="result-line" data-field="dyn-reaction">-</div>
+      <div class="result-line" data-field="dyn-market">Вход по рынку.</div>
+      <div class="result-line" data-field="dyn-volume">Объем: -</div>
+      <div class="result-line" data-field="dyn-loss">Потеря RR: -</div>
+      <div class="result-line" data-field="dyn-min-threshold-price">Порог минимального значения: -</div>
+      <div class="result-line" data-field="dyn-min-threshold-volume">Объём: -</div>
+      <div class="divider" data-field="dyn-divider"></div>
+      <div class="result-line" data-field="dyn-threshold-price">Порог максимального допустимого значения: -</div>
+      <div class="result-line" data-field="dyn-threshold-volume">Объём: -</div>
+      <div class="result-line" data-field="dyn-threshold-list"></div>
+    </div>
     `;
     grid.appendChild(card);
+
+    const toggleBtn = card.querySelector('[data-action="toggle-dynamic"]');
+    const dynBlock = card.querySelector('[data-role="dynamic"]');
+    const priceInput = card.querySelector('input[data-field="dyn-price"]');
+    const thresholdInput = card.querySelector('input[data-field="dyn-threshold"]');
+    const reactionEl = card.querySelector('[data-field="dyn-reaction"]');
+    const marketEl = card.querySelector('[data-field="dyn-market"]');
+    const volumeEl = card.querySelector('[data-field="dyn-volume"]');
+    const lossEl = card.querySelector('[data-field="dyn-loss"]');
+    const minThresholdPriceEl = card.querySelector('[data-field="dyn-min-threshold-price"]');
+    const minThresholdVolumeEl = card.querySelector('[data-field="dyn-min-threshold-volume"]');
+    const dividerEl = card.querySelector('[data-field="dyn-divider"]');
+    const thresholdPriceEl = card.querySelector('[data-field="dyn-threshold-price"]');
+    const thresholdVolumeEl = card.querySelector('[data-field="dyn-threshold-volume"]');
+    const thresholdListEl = card.querySelector('[data-field="dyn-threshold-list"]');
+    const cardEntryEl = card.querySelector('[data-field="card-entry"]');
+    const cardLotsEl = card.querySelector('[data-field="card-lots"]');
+    const cardRiskEl = card.querySelector('[data-field="card-risk"]');
+    const cardProfitEl = card.querySelector('[data-field="card-profit"]');
+
+    const updateDynamic = () => {
+      if (!reactionEl || !volumeEl || !lossEl || !thresholdPriceEl) return;
+      const currentPrice = toNullableNumber(priceInput ? priceInput.value : null);
+      const thresholdPct = clamp(toNumber(thresholdInput ? thresholdInput.value : 20, 20), 1, 99);
+
+      const oldRR = calculateRR(item.entry, item.sl, item.tp);
+      const newRR = calculateRRAtPrice(currentPrice, item.sl, item.tp);
+
+      if (!Number.isFinite(oldRR) || oldRR <= 0 || !Number.isFinite(newRR) || newRR <= 0) {
+        reactionEl.textContent = 'Нет данных для RR.';
+        volumeEl.textContent = 'Объем: -';
+        lossEl.textContent = 'Потеря RR: -';
+        thresholdPriceEl.textContent = 'Порог значимого изменения (цена): -';
+        return;
+      }
+
+      const diffPct = Math.abs(newRR - oldRR) / oldRR * 100;
+      const significant = diffPct > thresholdPct;
+      const isProfitable = newRR > 1.5;
+      reactionEl.textContent = significant ? 'Реакция значительна.' : 'Реакция незначительна.';
+
+      const riskPct = results.byId[item.id] ? results.byId[item.id].risk : 0;
+      const calcItem = {
+        entry: currentPrice,
+        sl: item.sl,
+        tp: item.tp,
+        dep: item.dep,
+        depCur: item.depCur,
+        riskPct,
+        quote: item.quote,
+        size: item.size
+      };
+      const calcDynamic = calculateLotMetrics(calcItem, rate);
+      const lotsText = calcDynamic.error ? '-' : formatLots(calcDynamic.lots);
+      const riskText = calcDynamic.error
+        ? '-'
+        : `${formatMoney(calcDynamic.loss, item.depCur)} | ${formatPercent(calcDynamic.lossDepPct)}`;
+      const profitText = calcDynamic.error
+        ? '-'
+        : `${formatMoney(calcDynamic.profit, item.depCur)} | ${formatPercent(calcDynamic.profitDepPct)}`;
+
+      if (cardEntryEl) cardEntryEl.textContent = Number.isFinite(currentPrice) ? formatPrice(currentPrice) : formatPrice(item.entry);
+      if (cardLotsEl) cardLotsEl.textContent = lotsText !== '-' ? lotsText : initialLotsText;
+      if (cardRiskEl) cardRiskEl.textContent = riskText !== '-' ? riskText : initialRiskText;
+      if (cardProfitEl) cardProfitEl.textContent = profitText !== '-' ? profitText : initialProfitText;
+
+      if (marketEl) {
+        if (Number.isFinite(newRR) && newRR < 1.5) {
+          marketEl.textContent = `Открытие лимитным ордером по изначальной цене открытия с прежним объемом (${initialLotsText} лота).`;
+        } else {
+          marketEl.innerHTML = significant ? 'Вход по рынку.' : '<strong>Вход по рынку.</strong>';
+        }
+        marketEl.style.display = significant && isProfitable ? 'none' : 'block';
+      }
+
+      const hideVolumeLoss = (significant && isProfitable) || (Number.isFinite(newRR) && newRR < 1.5);
+      if (volumeEl) {
+        volumeEl.style.display = hideVolumeLoss ? 'none' : 'block';
+        if (!hideVolumeLoss) {
+          if (Number.isFinite(newRR) && newRR < 1.5) {
+            volumeEl.textContent = `Объем: ${initialLotsText} лота`;
+          } else {
+            volumeEl.innerHTML = significant
+              ? `Объем: ${lotsText} лота`
+              : `Объем: <strong>${lotsText} лота</strong>`;
+          }
+        }
+      }
+
+      if (lossEl) {
+        lossEl.style.display = hideVolumeLoss ? 'none' : 'block';
+        if (!hideVolumeLoss) {
+          lossEl.textContent = `Потеря RR = ${diffPct.toFixed(2)}%`;
+        }
+      }
+
+      const decimals = getDecimalPlaces(priceInput ? priceInput.value : null);
+      const precision = Number.isFinite(decimals) ? decimals : null;
+      const rr15PriceRaw = calculateRRThresholdPrice(1.5, item.sl, item.tp);
+      const rr15Price = Number.isFinite(rr15PriceRaw)
+        ? roundPriceValue(rr15PriceRaw, precision)
+        : null;
+      if (rr15Price === null) {
+        thresholdPriceEl.textContent = 'Порог максимального допустимого значения: -';
+        if (thresholdVolumeEl) thresholdVolumeEl.textContent = 'Объём: -';
+      } else {
+        thresholdPriceEl.innerHTML = `Порог максимального допустимого значения: <strong>${formatPriceFixed(rr15Price, precision)}</strong>`;
+        if (thresholdVolumeEl) {
+          const thresholdItem = {
+            entry: rr15Price,
+            sl: item.sl,
+            tp: item.tp,
+            dep: item.dep,
+            depCur: item.depCur,
+            riskPct,
+            quote: item.quote,
+            size: item.size
+          };
+          const thresholdCalc = calculateLotMetrics(thresholdItem, rate);
+          const thresholdLots = thresholdCalc.error ? '-' : `${formatLots(thresholdCalc.lots)} лотов`;
+          thresholdVolumeEl.innerHTML = thresholdCalc.error
+            ? 'Объём: -'
+            : `Объём: <strong>${thresholdLots}</strong>`;
+        }
+      }
+
+      const upperTarget = oldRR * (1 + thresholdPct / 100);
+      const lowerTarget = oldRR * Math.max(1 - thresholdPct / 100, 0.0001);
+      const upperPriceRaw = calculateRRThresholdPrice(upperTarget, item.sl, item.tp);
+      const lowerPriceRaw = calculateRRThresholdPrice(lowerTarget, item.sl, item.tp);
+      const upperPrice = Number.isFinite(upperPriceRaw) ? roundPriceValue(upperPriceRaw, precision) : null;
+      const lowerPrice = Number.isFinite(lowerPriceRaw) ? roundPriceValue(lowerPriceRaw, precision) : null;
+      let minThresholdPrice = null;
+      if (Number.isFinite(currentPrice)) {
+        const candidates = [upperPrice, lowerPrice].filter((val) => Number.isFinite(val));
+        if (candidates.length) {
+          minThresholdPrice = candidates.reduce((closest, val) => {
+            if (closest === null) return val;
+            return Math.abs(val - currentPrice) < Math.abs(closest - currentPrice) ? val : closest;
+          }, null);
+        }
+      } else {
+        minThresholdPrice = Number.isFinite(upperPrice) ? upperPrice : lowerPrice;
+      }
+
+      const showMinThreshold = !significant && Number.isFinite(minThresholdPrice);
+      if (minThresholdPriceEl) {
+        minThresholdPriceEl.style.display = showMinThreshold ? 'block' : 'none';
+        if (showMinThreshold) {
+          minThresholdPriceEl.innerHTML = `Порог минимального значения: <strong>${formatPriceFixed(minThresholdPrice, precision)}</strong>`;
+        }
+      }
+      if (minThresholdVolumeEl) {
+        minThresholdVolumeEl.style.display = showMinThreshold ? 'block' : 'none';
+        if (showMinThreshold) {
+          const minThresholdItem = {
+            entry: minThresholdPrice,
+            sl: item.sl,
+            tp: item.tp,
+            dep: item.dep,
+            depCur: item.depCur,
+            riskPct,
+            quote: item.quote,
+            size: item.size
+          };
+          const minThresholdCalc = calculateLotMetrics(minThresholdItem, rate);
+          const minThresholdLots = minThresholdCalc.error ? '-' : `${formatLots(minThresholdCalc.lots)} лотов`;
+          minThresholdVolumeEl.innerHTML = minThresholdCalc.error
+            ? 'Объём: -'
+            : `Объём: <strong>${minThresholdLots}</strong>`;
+        }
+      }
+
+      if (thresholdListEl) {
+        thresholdListEl.textContent = '';
+        const showThresholds = Number.isFinite(newRR) && newRR > 1.5;
+        if (dividerEl) {
+          dividerEl.style.display = significant ? 'none' : ((showThresholds || rr15Price !== null) ? 'block' : 'none');
+        }
+        if (showThresholds) {
+          const lines = [];
+          const usedPrices = new Set();
+          let target = newRR;
+          let index = 0;
+          while (target > 1.5 + 1e-6) {
+            target = target * 0.95;
+            if (target < 1.5) target = 1.5;
+            const entryPrice = calculateRRThresholdPrice(target, item.sl, item.tp);
+            if (!Number.isFinite(entryPrice)) break;
+            const roundedEntry = roundPriceValue(entryPrice, precision);
+            if (!Number.isFinite(roundedEntry)) break;
+            const roundedKey = precision !== null ? roundedEntry.toFixed(precision) : roundedEntry.toFixed(8);
+            if (usedPrices.has(roundedKey)) {
+              if (target <= 1.5 + 1e-6) break;
+              continue;
+            }
+            usedPrices.add(roundedKey);
+            const thresholdItem = {
+              entry: roundedEntry,
+              sl: item.sl,
+              tp: item.tp,
+              dep: item.dep,
+              depCur: item.depCur,
+              riskPct,
+              quote: item.quote,
+              size: item.size
+            };
+            const thresholdCalc = calculateLotMetrics(thresholdItem, rate);
+            const thresholdLots = thresholdCalc.error ? '-' : formatLots(thresholdCalc.lots);
+            const rrAtRounded = calculateRRAtPrice(roundedEntry, item.sl, item.tp);
+            const rrText = Number.isFinite(rrAtRounded) ? rrAtRounded.toFixed(2) : '-';
+            const priceText = formatPriceFixed(roundedEntry, precision);
+            const bestClass = index === 0 ? ' is-best' : '';
+            lines.push(
+              `<div class="threshold-block${bestClass}"><div class="threshold-price">Цена: <strong>${priceText}</strong></div><div><span class="threshold-volume">Объем: <strong>${thresholdLots} лота</strong></span>, RR: ${rrText}</div></div>`
+            );
+            index += 1;
+            if (target <= 1.5 + 1e-6) break;
+          }
+          thresholdListEl.innerHTML = lines.length ? lines.join('') : '';
+        }
+      }
+    };
+
+    if (toggleBtn && dynBlock) {
+      toggleBtn.addEventListener('click', () => {
+        dynBlock.classList.toggle('is-open');
+        updateDynamic();
+      });
+    }
+
+    if (priceInput) priceInput.addEventListener('input', updateDynamic);
+    if (thresholdInput) thresholdInput.addEventListener('input', updateDynamic);
   });
 }
 
@@ -2059,3 +2369,15 @@ runAndRender();
 updatePrices(true);
 startAutoPriceRefresh();
 updateAddFormDefaults();
+
+window.addEventListener('storage', (event) => {
+  if (event.key === DEALS_KEY) {
+    currentDeals = loadDeals();
+    dealParams = loadParams();
+    ensureParamsForDeals(currentDeals);
+    renderDeals(currentDeals);
+    updateAddFormDefaults();
+    runAndRender();
+    updatePrices(true);
+  }
+});

@@ -1,6 +1,7 @@
 const INDEXES = {
   GER40: { quote: 'EUR', contractSize: 25 },
-  SPX500: { quote: 'USD', contractSize: 50 }
+  SPX500: { quote: 'USD', contractSize: 50 },
+  NAS100: { quote: 'USD', contractSize: 50 }
 };
 
 function formatDateTime(value) {

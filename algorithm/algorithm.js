@@ -17,7 +17,8 @@ const INDEX_SYMBOLS = {
 
 const INDEX_DEFS = {
   GER40: { quote: 'EUR', contractSize: 25 },
-  SPX500: { quote: 'USD', contractSize: 50 }
+  SPX500: { quote: 'USD', contractSize: 50 },
+  NAS100: { quote: 'USD', contractSize: 50 }
 };
 
 const CONTRACT_SIZES = {

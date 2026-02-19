@@ -697,21 +697,35 @@
         <div class="field">
           <label for="addPair">Актив</label>
           <select id="currencyPair" required>
-            <optgroup label="N*/USD">
+            <optgroup label="Indexes">
+              <option value="GER40">GER40</option>
+              <option value="SPX500">SPX500</option>
+              <option value="NAS100">NAS100</option>
+            </optgroup>
+            <optgroup label="GBP/N*">
+              <option value="GBP/AUD">GBP/AUD</option>
+              <option value="GBP/USD">GBP/USD</option>
+              <option value="GBP/CHF">GBP/CHF</option>
+              <option value="GBP/USD">GBP/USD</option>
+            </optgroup>
+            <optgroup label="USD/N*">
               <option value="USD/JPY">USD/JPY</option>
               <option value="USD/CHF">USD/CHF</option>
               <option value="USD/CAD">USD/CAD</option>
-              <option value="AUD/USD">AUD/USD</option>
-            </optgroup>
-            <optgroup label="USD/N*">
-              <option value="NZD/USD">NZD/USD</option>
-              <option value="EUR/USD">EUR/USD</option>
-              <option value="GBP/USD">GBP/USD</option>
             </optgroup>
             <optgroup label="EUR/N*">
               <option value="EUR/GBP">EUR/GBP</option>
               <option value="EUR/JPY">EUR/JPY</option>
               <option value="EUR/NZD">EUR/NZD</option>
+              <option value="EUR/USD">EUR/USD</option>
+            </optgroup>
+            <optgroup label="AUD/N*">
+              <option value="AUD/USD">AUD/USD</option>
+              <option value="AUD/JPY">AUD/JPY</option>
+            </optgroup>
+            <optgroup label="NZD/N*">
+              <option value="NZD/USD">NZD/USD</option>
+              <option value="NZD/JPY">NZD/JPY</option>
             </optgroup>
             <optgroup label="Metalls">
               <option value="XAUUSD">XAU/USD</option>
@@ -720,11 +734,6 @@
             <optgroup label="Crypto">
               <option value="BTCUSDT">BTCUSDT</option>
               <option value="ETHUSDT">ETHUSDT</option>
-            </optgroup>
-            <optgroup label="Indexes">
-              <option value="GER40">GER40</option>
-              <option value="SPX500">SPX500</option>
-              <option value="NAS100">NAS100</option>
             </optgroup>
           </select>
         </div>
